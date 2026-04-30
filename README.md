@@ -1,1 +1,21 @@
 # trainslowracefast
+
+Planning repository for an aerobic-first endurance training SaaS.
+
+The current phase is business validation. The goal is to determine whether there is a durable business around helping athletes execute low-intensity-first training methods more consistently.
+
+## Directory structure
+
+- `docs/01_initial_feasibility_discussion.md`: initial market thesis, wedge, beachhead, MVP, and core risks
+- `docs/02_feasibility_validation.md`: workshop-based validation sequence
+- `docs/03_agent_framework.md`: advisor-agent framework tailored to this category
+- `docs/04_demand_positioning_workshop.md`: Workshop 1 — locks ICP (the Convert), brand frame (*Train slow, race fast*), MVP frame (*Easy days, done right*), and pricing hypothesis ($12/mo)
+- `docs/05_behavior_wedge_workshop.md`: Workshop 2 — locks the behavior loop (sync → 2 h deviation digest → Sunday Weekly Review → Aerobic Trend), the 5-metric MVP set, free tier shape (3 Weekly Reviews capped), cap-setting protocol, and the extended exp-4 concierge + auto-handoff pilot
+- `docs/06_integrations_workshop.md`: Workshop 3 — locks Strava + FIT as MVP integration scope, Garmin direct as Phase-1.5, web-first delivery, activity-type taxonomy (Run + Ride), and `coach_id` data model for an MVP-1 coach view
+- `docs/07_economics_workshop.md`: Workshop 4 — locks pricing ($12/mo or $120/yr at 17% off), 3-review free-tier framing, channel mix targets (blended CAC $25), provisional-cap activation path, COGS stack, and Y1 milestone (1,000 paid users / $120k ARR target)
+- `docs/08_science_workshop.md`: Workshop 5 — locks Adherence redefinition (Real Easy Minutes), cap confidence labels, Recovery-delta wording library, edge-case catalog, claims policy, and the "no readiness score" credibility position
+- `docs/09_trust_workshop.md`: Workshop 6 — locks sensitive-data classification (HRV / conditions / meds / tagged context as Article 9 / CCPA SPI), encryption + retention policy, RLS-based isolation, coach-view consent + audit, affiliate data isolation, pause-subscription mechanics, conditions-consent surface, and the Strava chokepoint 30/90/180-day playbook
+- `docs/10_red_team_workshop.md`: Workshop 7 — walks 10 attack scenarios end-to-end, ranks the failure inventory by likelihood × severity, and produces the staged go/no-go architecture (exp-1 → exp-2 → exp-4 → Garmin → MVP build → MVP launch → MVP+90 review). Conditional GO with five pre-launch artifacts and four new kill criteria.
+- `docs/_platform_risk_log.md`: quarterly review log for provider TOS / API changes
+- `docs/_assumption_register.md`: shared hypothesis ledger across workshops
+- `docs/_kill_criteria.md`: numeric thresholds for pivot / kill decisions
