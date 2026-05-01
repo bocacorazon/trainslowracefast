@@ -78,6 +78,7 @@ Numeric thresholds that should stop drift and force honest decisions.
 | K-W7-2 | Y1 revenue tracking | < $40k ARR at month 9 post-launch | Founder transitions to part-time or initiates wind-down; do NOT extend personal runway past month-18 model | Monthly revenue review | W7 |
 | K-W7-3 | MVP+90 5-metric checkpoint (M3 retention ≥60%, LP→activation ≥4%, CAC ≤$30, platform stability, ARR ≥$40k) | 0 or 1 of 5 pass | Execute wind-down playbook (Scenario 10) | MVP+90 review | W7 |
 | K-W7-4 | Compound platform failure: Strava cutoff AND Garmin direct denied/cut | Both events at any time post-launch | Reassess viability within 30 days; explicit founder-led continue / scope-down / wind-down decision | Platform monitoring | W7 |
+| K-W7-5 | Local-tier hardware spend gate | Workstation hardware purchase (M-series Mac ≥32GB or Linux ≥24GB GPU) is forbidden until exp-1 AND exp-2 both pass their respective gates | HOLD spend / PROCEED on hardware after both pass | Founder discipline | W7 |
 
 ---
 
