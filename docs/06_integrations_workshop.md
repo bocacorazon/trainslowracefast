@@ -13,7 +13,7 @@
 - **MVP integration scope:** Strava OAuth + webhooks (primary path) and FIT file manual upload (fallback). No other direct device integrations at MVP.
 - **Phase-1.5 (within 6 months of MVP):** Direct Garmin Activity API integration. Partnership application opens **now**, in parallel with exp-4, so approval lead time doesn't gate launch.
 - **Phase-2 (post-product-market evidence):** Wahoo Cloud API, Polar AccessLink, Coros Open API. Apple HealthKit gated on iOS app decision (deferred).
-- **Activity types at MVP:** Run + Ride only. All other types ignored or hidden; manual tagging available but not relied on.
+- **Activity types at MVP:** Run + Ride are the primary loop. Cross-training is imported and labeled as supportive load, not ignored; it is excluded from core Adherence % until substitution rules are validated.
 - **Coach role:** data model accepts a `coach_id` link from MVP-1; no coach UI at MVP. This protects the Phase-2 distribution channel without adding launch scope.
 - **Strava is treated as a chokepoint, not a partner.** Any architecture decision that would deepen lock-in (e.g., proprietary use of Strava-only fields) is rejected. The Weekly Review can be delivered via email + web app without any provider's app surface.
 - **Web-first remains correct.** No native mobile app at MVP; push notifications via web push (Notification API) for desktop and Android; iOS receives email-only fallback for the creep digest. Revisit at Phase-2 if iOS conversion lags.
@@ -63,13 +63,13 @@ The honest framing:
 
 - **OAuth scopes requested:** `read`, `activity:read_all`. We do **not** request `activity:write` (we never publish back to Strava — preserves trust and avoids TOS minefield).
 - **Webhooks:** subscribe at app level; receive `aspect_type=create` events; immediately enqueue a `streams` fetch (HR, time, distance, altitude, watts if present).
-- **Storage:** persist the parsed stream and our derived metrics; never re-display Strava's raw activity feed or comments. Show only the athlete's own data and our derived views.
+- **Storage:** persist the parsed stream, route trace, provider provenance, and our derived metrics in separate layers; never re-display Strava's raw activity feed or comments. Show only the athlete's own data, a table-stakes route display on the activity detail view, and our derived views.
 - **Rate-limit headroom:** Strava is 200 req/15min, 2000/day per app. At 10k users averaging 1 activity/day, peak burst is well under the 15-min limit; the daily limit is the binding one and is comfortable until ~50k DAU. Above that, request a higher tier.
 - **Disconnect handling:** if a user revokes OAuth, last-known data is preserved for 30 days behind a "reconnect" prompt; on day 31, archived; on day 60, deleted. This is also the **Trust** position (W6).
 
 #### Garmin Phase-1.5 plan
 
-- File partnership application **this week** with the business case: derived training-discipline insights, own-data-only delivery, no marketing of Garmin product, no sale of Garmin-derived data, no AI/LLM use of activity content.
+- File partnership application **this week** with the business case: derived training-discipline insights, own-data-only delivery, no marketing of Garmin product, no sale of Garmin-derived data, no third-party model training on Garmin user data, and no raw Garmin activity content sent to external LLM APIs. User-facing insights are computed only for the same athlete from that athlete's own data.
 - Build the Garmin connector behind a feature flag; ship to a closed cohort once approved. Public availability follows the first 100 paid users.
 - If Garmin denies, we are still viable on Strava-only at MVP. The cost of denial is a slower P80 latency for the ~15% of athletes who don't push to Strava — acceptable.
 
@@ -85,10 +85,13 @@ The honest framing:
 |---|---|---|
 | Run, Trail Run, Virtual Run, Treadmill | Run | Full loop |
 | Ride, Gravel Ride, Mountain Bike Ride, Virtual Ride | Ride | Full loop |
-| Walk, Hike | (ignored) | Imported but excluded from Adherence % |
-| Swim, Workout, WeightTraining, Yoga, Crossfit, etc. | (ignored) | Imported but suppressed in views |
+| Walk, Hike | Low-impact aerobic support | Imported; visible in supportive-load view; excluded from core Adherence % until substitution rules are validated |
+| Swim, Elliptical, Rowing, Nordic Ski, etc. | Cross-training aerobic support | Imported; contributes to weekly supportive-load context; excluded from run/ride discipline scoring by default |
+| WeightTraining, Yoga, Pilates, Mobility, Crossfit, etc. | Strength / mobility support | Imported and labeled; shown as context for durability and recovery, not converted into run/ride-equivalent load at MVP |
 
 Easy-tag is per-activity, defaulted from the activity's planned-vs-actual context (planned-easy = tagged-easy; everything else is untagged and excluded from Adherence %).
+
+Cross-training is an explicit product research wedge, not a hidden activity class. MVP surfaces it as "supportive load" and asks one narrow question: did this session help the athlete keep the aerobic block moving without adding the same orthopedic cost as more running? We do not convert bike/swim/strength into run-equivalent mileage at MVP; we collect enough tagged examples to learn when cross-training should count as substitution, recovery, or extra load.
 
 #### Coach role at MVP-1
 
@@ -145,8 +148,8 @@ The Strava-first call is correct for the Convert at MVP, but two things to flag.
 The Strava chokepoint is real and the mitigations are sound, but I want three things tightened.
 
 1. **Strava TOS quarterly review.** Schedule a recurring (every 3 months) read of Strava's API Agreement and Brand Guidelines. Flag any change that touches: (a) re-display of athlete-own data, (b) email/derived insights, (c) AI/ML use, (d) charging for derivative features. Document the read in `docs/_platform_risk_log.md` (new file). This is a 30-minute task per quarter and worth it.
-2. **Data minimization on Strava ingest.** We import HR, time, distance, altitude, watts (when present), GPS — but for the W2 loop, **GPS is not required** outside of activity-type detection. Recommendation: store GPS only at session-summary granularity (start/end coordinates, total distance, elevation gain), not the full polyline. This (a) reduces storage cost, (b) reduces breach blast radius, (c) is more privacy-defensible, (d) sidesteps any future Strava TOS change about polyline reuse. If a user wants polyline-aware features later, opt in.
-3. **Disconnect / data-portability defaults.** From W2 we already have: 30-day reconnect window, 60-day deletion. Add: **one-click full data export (CSV + raw FIT bundle) at any time**. This is a Trust feature, but also a *Strava-cutoff insurance* feature — if Strava cuts us, athletes export and re-upload via FIT, and they keep their Adherence history. Build it in MVP, not later.
+2. **Purpose-limited GPS retention on ingest.** We import HR, time, distance, altitude, watts (when present), and GPS. For the narrow W2 loop, GPS is not required beyond activity-type detection, but route data can support differentiated features later: terrain normalization, route-choice fairness, repeated-route comparisons, indoor/outdoor detection, climb/grade context, and safer interpretation of "failed" easy days on unavoidable terrain. Recommendation: do not discard full route traces by default; store them in a separate route-data layer with strict purpose limitation. Default views use summary/derived fields, while full polylines are used only for athlete-own route-aware features, never social comparison, route publishing, resale, affiliate reporting, or provider-derived marketing. Mitigations: privacy-zone redaction near home/work, no full polyline in logs or support exports, one-click delete/export, and a later product gate before any route-aware feature ships.
+3. **Disconnect / data-portability defaults.** From W2 we already have: 30-day reconnect window, 60-day deletion. Add: **one-click full data export (CSV summaries + raw FIT bundle + stored route traces / provider streams where available) at any time**. This is a Trust feature, but also a *Strava-cutoff insurance* feature — if Strava cuts us, athletes export and re-upload via FIT, and they keep their Adherence history. Build it in MVP, not later.
 
 **Mandatory disclosures:** privacy policy, data-processing terms, Strava attribution badge (per their brand guidelines), GDPR cookie/consent banner. These are W6 detail but the surfaces must exist at MVP.
 
@@ -180,10 +183,10 @@ Three economic notes, all minor.
 3. Garmin Activity API partnership application opens this week, in parallel with exp-4. Phase-1.5 ship target: 6 months post-MVP, conditional on approval and pricing.
 4. Wahoo, Polar, Coros: Phase-2, gated on retention evidence.
 5. Apple HealthKit: deferred; revisit when an iOS-app decision is made (not at MVP).
-6. Activity types at MVP: Run + Ride. Everything else imported but excluded from views.
+6. Activity types at MVP: Run + Ride are the primary loop. Cross-training is imported, labeled as supportive load, and visible as context, but excluded from core Adherence % until substitution rules are validated.
 7. Coach role: `coach_id` data model from day 1, no UI at MVP, read-only dashboard at MVP-1.
-8. Strava data minimization: store GPS at session-summary granularity, not full polyline (Trust §4 #2 adopted).
-9. One-click full data export (CSV + raw FIT bundle) ships at MVP (Trust §4 #3 adopted).
+8. Strava GPS handling: retain route data only in a purpose-limited route layer with privacy-zone redaction and strict controls; default views use summary/derived fields, but full polylines are not discarded preemptively (Trust §4 #2 revised).
+9. One-click full data export (CSV summaries + raw FIT bundle + stored route traces / provider streams where available) ships at MVP (Trust §4 #3 adopted).
 10. LP copy names devices explicitly with the connection chain: "Connects to your Garmin, Wahoo, Coros, and Polar — automatically, through Strava." Tested as A/B in exp-2 (Demand §3 #1 adopted).
 11. OAuth screen offers FIT-upload alternative inline (Demand §3 #2 adopted).
 12. Quarterly Strava TOS review logged in `docs/_platform_risk_log.md` (Trust §4 #1 adopted).

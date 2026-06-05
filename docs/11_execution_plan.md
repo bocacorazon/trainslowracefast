@@ -116,18 +116,35 @@ These are slow-moving and must not be left to the post-gate scramble.
 1. Auth + accounts (email + Google SSO).
 2. Strava OAuth integration (read + activity:read_all only, never write); webhook subscriber + validation; 24h soft-delete / 30d hard-delete on revocation.
 3. FIT manual upload pipeline (drag-drop + email submission).
-4. Five MVP metrics computation engine: Adherence (Real Easy Minutes), Drift, Aerobic Trend, Recovery delta (descriptive only), Weekly intensity distribution.
-5. Behavior loop: post-sync digest (≤2h), Sunday Weekly Review email + in-app, Aerobic Trend reward surface.
-6. Cap-setting protocol UI (provisional / data-validated / coach-lab-validated three-state).
-7. Conditions-consent surface (declared medications / cardiac conditions).
-8. Free tier (capped at 3 Weekly Reviews); Stripe Checkout for $12/mo + $120/yr Pro.
-9. coach_id data model from day 1; no coach UI at MVP.
-10. PostgreSQL RLS on all athlete tables; envelope encryption for sensitive fields (HRV, declared conditions, declared medications, tagged context); KMS-managed keys.
-11. Audit log on all sensitive-field reads, separate audit-only database, 24-month retention.
-12. One-click data export (CSV summaries + raw FIT bundle).
-13. Granular delete (workout, recovery tag, HRV history, declared conditions, account).
-14. Pen-test executed and remediated before launch (gate K-W6-2).
-15. Cyber liability bound; advisory board statement-availability confirmed; response templates loaded.
+4. Activity + route data model: provider provenance, normalized activity type, time-series stream layer, purpose-limited route-data layer, route display on athlete-owned activity detail, and derived metric runs.
+5. Five MVP metrics computation engine: Adherence (Real Easy Minutes), Drift, Aerobic Trend, Recovery delta (descriptive only), Weekly intensity distribution.
+6. Behavior loop: post-sync digest (≤2h), Sunday Weekly Review email + in-app, Aerobic Trend reward surface.
+7. Cap-setting protocol UI (provisional / data-validated / coach-lab-validated three-state).
+8. Conditions-consent surface (declared medications / cardiac conditions).
+9. Free tier (capped at 3 Weekly Reviews); Stripe Checkout for $12/mo + $120/yr Pro.
+10. coach_id data model from day 1; no coach UI at MVP.
+11. PostgreSQL RLS on all athlete tables; envelope encryption for sensitive fields (HRV, declared conditions, declared medications, tagged context, full route traces); KMS-managed keys.
+12. Audit log on all sensitive-field reads, separate audit-only database, 24-month retention.
+13. One-click data export (CSV summaries + raw FIT bundle + stored route traces / provider streams where available).
+14. Granular delete (workout, route trace, recovery tag, HRV history, declared conditions, account).
+15. Pen-test executed and remediated before launch (gate K-W6-2).
+16. Cyber liability bound; advisory board statement-availability confirmed; response templates loaded.
+
+### MVP data model baseline
+
+The activity schema must preserve enough context for route-aware interpretation without turning MVP into a generic analytics platform. Route display is table stakes on an activity-detail screen, but route data is more important as future signal: terrain normalization, repeated-route comparison, route-choice fairness, indoor/outdoor classification, drift-location correlation, and eventual weather/headwind context.
+
+| Layer | Purpose | MVP fields / behavior | Future use |
+|---|---|---|---|
+| `activities` | Canonical workout record | athlete_id, provider, provider_activity_id, source (`strava`, `fit_upload`, later `garmin`), start_time, duration, distance, elevation_gain, sport_type_raw, sport_type_normalized, primary/supportive classification, privacy/deletion state | Deduplication, provider fallback, cross-training substitution research |
+| `activity_streams` | Time-aligned physiological and performance data | time offset, HR, pace/speed, power, cadence, altitude, distance, sensor/source provenance; raw values preserved and corrections layered separately | Recompute Adherence when caps change; detect drift, HR artifacts, terrain-linked excursions |
+| `route_traces` | Purpose-limited precise location layer | encoded polyline or point series, privacy-zone redaction status, route hash, start/end redaction, storage consent/version; never exposed to coaches/affiliates by default | Route display; repeated-route comparison; terrain/grade normalization; ML features from athlete-own route history |
+| `route_features` | Lower-risk derived route context | grade distribution, climb segments, surface/indoor flag where known, stop density, route difficulty fingerprint | Normalize metrics for terrain; distinguish bad execution from unavoidable terrain |
+| `environment_context` | External context joined by time/location | initially empty or manual notes; later weather/wind/temperature provider joins by route segment and timestamp | Explain drift clusters: heat, headwind, climb, exposed section |
+| `metric_runs` | Auditable derived outputs | metric name, version, input provenance, cap version, computed_at, output JSON; never freeze Adherence permanently | Recompute metrics after cap changes, algorithm changes, route-normalization updates |
+| `annotations` | Human/athlete explanations | one-tap reasons (`hills`, `heat`, `headwind`, `felt fine`, `wanted to push`), coach/founder notes, anomaly flags | Label training data for better rules and eventual first-party ML |
+
+MVP uses route data in two constrained ways: show the athlete their own route on the activity detail view, and support simple terrain/context annotations around HR drift. First-party ML can later use route-derived features to improve normalization and advice, but raw route traces are not sent to external LLM APIs, used for third-party model training, sold, published, or exposed in social/segment-style features.
 
 **Gate:** pen-test passed (zero P0/P1 unremediated); all hard-rule kill criteria (K-W5-3, K-W6-1, K-W6-4) instrumented for production detection; concierge cohort at week-13+ migrated to MVP and Pro-converted.
 

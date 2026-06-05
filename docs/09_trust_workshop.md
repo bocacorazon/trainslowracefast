@@ -57,6 +57,7 @@ The honest framing: **trust is a product, not a checklist.** The Convert ICP is 
 | Declared HR-affecting medication flag | Article 9 health / CCPA SPI | App-layer envelope encryption | Yes — at onboarding declaration | Same as account; deletable independently |
 | Self-tagged recovery context (sleep, alcohol, illness, stress, menstrual cycle) | Article 9 health / CCPA SPI | App-layer envelope encryption | Yes — at first tag (default-off feature per W5) | Same as account; granular delete per tag |
 | Workout HR streams, pace, GPS summary | Personal data (standard) | Provider-native at-rest (AES-256) | Implicit at OAuth; explicit at FIT upload | Active account: indefinite; on delete: 30-day hard |
+| Full GPS route traces / precise geolocation | CCPA SPI / high-risk personal data | App-layer envelope encryption + provider-native at-rest | Explicit route-data notice at OAuth/FIT upload; granular delete | Active account unless user deletes route traces; on account delete: 30-day hard |
 | Email, account credentials | Personal data (standard) | Provider-native at-rest; bcrypt passwords | At signup | Account lifecycle |
 | Stripe payment data | Stored at Stripe, not at us | N/A (Stripe-managed) | At purchase | Stripe's policy + 7yr billing records |
 | Affiliate attribution | Aggregated only, no PII | N/A | N/A | Indefinite; not athlete-linked |

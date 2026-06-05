@@ -81,7 +81,7 @@ Acronyms, jargon, and shorthand used across the W1–W7 workshops, the assumptio
 | **OAuth** | Open Authorization — delegated-access protocol for Strava/Garmin login. |
 | **TOS** | Terms of Service — platform contractual rules. Quarterly review locked in W3. |
 | **FIT** | Flexible and Interoperable Data Transfer — Garmin's binary workout file format. Our Tier 2 fallback. |
-| **GPS** | Global Positioning System — stored at session-summary granularity, not raw breadcrumbs. |
+| **GPS** | Global Positioning System — route traces are retained only in a purpose-limited route-data layer with privacy controls; default product views use summary/derived fields. |
 | **CSV** | Comma-Separated Values — export format. |
 | **Webhook** | Vendor-pushed HTTP notification (e.g., new Strava activity uploaded). |
 | **Phase-1.5** | Our shorthand for "between MVP and Y2" — when Garmin direct lands. |
@@ -128,7 +128,7 @@ Acronyms, jargon, and shorthand used across the W1–W7 workshops, the assumptio
 | **OAuth** | Open Authorization — the delegated-access protocol by which Strava users grant our app read access to their data without sharing their password. |
 | **TOS** | Terms of Service — the contractual rules a platform (Strava, Garmin) imposes on third-party developers. |
 | **FIT** | Flexible and Interoperable Data Transfer — Garmin's binary file format for workout data. Our Tier 2 fallback when OAuth is unavailable. |
-| **GPS** | Global Positioning System — location tracking. We store at session-summary granularity, not raw breadcrumb traces. |
+| **GPS** | Global Positioning System — location tracking. Route traces are retained only in a purpose-limited route-data layer with privacy controls; default product views use summary/derived fields. |
 | **CSV** | Comma-Separated Values — the export format for our one-click data export. |
 | **Webhook** | A vendor-pushed HTTP notification (e.g., Strava notifies us when a new activity is uploaded). |
 | **Phase-1.5** | Our shorthand for "between MVP and Y2" — when Garmin direct integration lands. |

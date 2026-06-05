@@ -237,7 +237,7 @@ Three observations on the loop as SaaS.
 - Strava webhook latency distribution — does ≥80% of traffic meet the 2 h SLA?
 - Garmin HealthAPI scope — is workout-level HR stream available via webhook, or is polling required? What is the polling interval ceiling?
 - Wahoo, Coros, Polar, Suunto, Apple — which are MVP-mandatory for the Convert ICP, and which can be deferred to FIT manual upload?
-- Activity-type taxonomy mapping across providers (we need run + ride at MVP; everything else suppressed or manual-tagged).
+- Activity-type taxonomy mapping across providers (run + ride are the primary MVP loop; cross-training should be imported and labeled as supportive load, with substitution rules validated before it affects core Adherence %).
 - Coach role: not a launch dependency, but should the data model accept coach-shared accounts at MVP-1 to enable a Phase-2 distribution channel?
 - Strava and Garmin TOS — does delivering a "Weekly Review" derived from their data violate any clause? (Hand-off to W6 if so.)
 

@@ -140,7 +140,7 @@ Channel kill: if creator+organic+community share drops below 65% by month 6, ble
 | Push (FCM/APNS) | $30 | $0.003 |
 | Queues (Cloudflare/SQS) | $50 | $0.005 |
 | Email (Postmark, ~10k Weekly Reviews + creep digests/mo) | $50 | $0.005 |
-| Storage (FIT + derived data, ~180 GB/yr accreted) | $200 | $0.02 |
+| Storage (FIT + streams + route traces + derived data, ~300 GB/yr accreted) | $300 | $0.03 |
 | App hosting (Vercel/Fly/AWS) | $300 | $0.03 |
 | Stripe (2.9% + $0.30) | $360 (3% blended) | $0.36 |
 | Support (assume 5% contact rate, 10 min × $25/hr) | $2,000 | $0.20 |
