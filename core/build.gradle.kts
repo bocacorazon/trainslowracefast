@@ -14,6 +14,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
+    // KMP/AGP gap: androidUnitTest does not map commonTest resources, while
+    // jvmTest does — the captured-fixture tests read them from the classpath.
+    sourceSets.getByName("test") {
+        resources.srcDirs("src/commonTest/resources")
+    }
 }
 
 java {
