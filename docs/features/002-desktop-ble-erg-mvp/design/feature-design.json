@@ -1,0 +1,470 @@
+{
+  "schema_version": "2",
+  "revision": 1,
+  "context": {
+    "schema_version": "hermoso-context/v1",
+    "project_id": "project-5cf55b9fce50644cfbe9f362",
+    "feature_id": "002-desktop-ble-erg-mvp",
+    "run_id": "run-dda354b4819e8f9066e1d86e",
+    "repository": {
+      "repository": "/home/marcos/Projects/trainslowracefast",
+      "remote_url": "https://github.com/bocacorazon/trainslowracefast.git",
+      "default_branch": "main"
+    }
+  },
+  "feature": {
+    "id": "002-desktop-ble-erg-mvp",
+    "title": "Linux desktop BLE ERG control MVP (increment 002)",
+    "objective": "Deliver a Linux desktop application (Compose Multiplatform) that connects to the CycleOps Hammer over BlueZ/BLE, shows live power and speed, and controls ERG target power with automatic reconnect, persistent pause, and safe disconnect \u2014 proven by a 5-minute ride on the real trainer. MVP scope: control only; not training-usable until heart rate lands in the next slice.",
+    "target_repository": {
+      "repository": "/home/marcos/Projects/trainslowracefast",
+      "remote_url": "https://github.com/bocacorazon/trainslowracefast.git",
+      "default_branch": "main"
+    }
+  },
+  "base_model": {
+    "schema_version": "hermoso-repository-model/v1",
+    "snapshot_id": "model-df3448c931557739c4f7639b65835bb3",
+    "content_hash": "sha256:df3448c931557739c4f7639b65835bb3d8a90053c9cabcbf967025ddd6baee89",
+    "source_revision": "85038a46a9d7d3b9be20145f1aed7109a61aa807",
+    "vocabulary_version": "v1"
+  },
+  "producer": {
+    "skill": "hermoso-design",
+    "runtime": "agent"
+  },
+  "complexity": "complex",
+  "requirements": [
+    {
+      "id": "req-ble-discovery",
+      "title": "Trainer discovery over BlueZ",
+      "statement": "The desktop app discovers BLE trainers via BlueZ and lists candidates (name, RSSI, advertised services) without hard-coded device addresses.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "First launch requires explicit device selection; discovery must work on the target NUC's BlueZ stack."
+    },
+    {
+      "id": "req-connect-classify",
+      "title": "Connect and classify from real GATT inventory",
+      "statement": "On connect, the app discovers the trainer's GATT services and classifies the control protocol from the actual inventory (FTMS 0x1826 with control point 0x2AD9 vs CycleOps proprietary); the classifier constants are finalized from captured hardware evidence, never assumed.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "The H1's BLE layout is unpublished; assuming FTMS is exactly what the classifier was built to avoid."
+    },
+    {
+      "id": "req-erg-auto",
+      "title": "ERG engages automatically on connection",
+      "statement": "On connection, ERG engages automatically at the remembered target wattage; a fresh install uses 120 W. There is no enable toggle. The UI distinguishes the requested target from trainer-confirmed control.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Locked grill decision: the app is always an ERG controller; the user never hunts for a mode switch."
+    },
+    {
+      "id": "req-target-adjust",
+      "title": "Target adjustment controls",
+      "statement": "The target can be adjusted by \u22123 W / +3 W buttons, by a numeric field that commits on Enter or focus loss (never per keystroke), and by \u2191/\u2193 keyboard keys adjusting 3 W when the field is not focused.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Riding hands stay on the bars; fine 3 W steps are the user's chosen increment."
+    },
+    {
+      "id": "req-target-clamp",
+      "title": "Target range clamped with visible notice",
+      "statement": "Targets are clamped to 50\u2013600 W; when clamping occurs the UI shows a visible notice and the clamped value becomes the remembered target.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Protects the user from typos and the trainer from invalid writes."
+    },
+    {
+      "id": "req-target-coalesce",
+      "title": "Rapid adjustments coalesce",
+      "statement": "Rapid successive adjustments coalesce (~300 ms) into a single trainer write; at most one target write is in flight at a time.",
+      "kind": "non_functional",
+      "priority": "must",
+      "rationale": "Prevents flooding the trainer's control point with stale intermediate targets."
+    },
+    {
+      "id": "req-reconnect",
+      "title": "Automatic reconnect with backoff",
+      "statement": "On an unexpected connection drop, the app retries with increasing delays until reconnected or the user presses Disconnect; on reconnect it reapplies the remembered target \u2014 unless paused, in which case it stays paused. A deliberate Disconnect cancels retrying.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Bluetooth drops mid-ride must not end the session or silently change the load."
+    },
+    {
+      "id": "req-pause",
+      "title": "Pause and Resume semantics",
+      "statement": "Pause requests the trainer's lowest supported load while keeping telemetry connected; Resume reapplies the remembered target. Pause persists across reconnects and app restarts. Wattage adjustments while paused update the saved target but do not apply resistance; only Resume applies it.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Interruptions (phone call, doorbell) must not throw away the riding target or surprise the rider with sudden load."
+    },
+    {
+      "id": "req-telemetry-display",
+      "title": "Live telemetry with staleness handling",
+      "statement": "The ride screen shows large actual power, target wattage, speed in km/h, and connection/control status. If no telemetry arrives for 3 seconds, readings display '\u2014' as stale while the app attempts recovery; numbers are never frozen.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "A frozen power number is dangerous on an ERG trainer \u2014 the user must know when data is dead."
+    },
+    {
+      "id": "req-safe-disconnect",
+      "title": "Minimum-load release on disconnect",
+      "statement": "Disconnect and app exit first request the trainer's minimum supported load, then release the connection. If the release request fails or the link is dead, the UI must not claim resistance was released.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Safety: walking away from a trainer still holding 200 W is a real hazard."
+    },
+    {
+      "id": "req-devices-screen",
+      "title": "Devices screen and remembered trainer",
+      "statement": "A devices screen is always reachable to discover, select, and replace the remembered trainer. First launch requires explicit selection; subsequent launches auto-connect to the remembered trainer and engage ERG.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Locked grill decision: auto-connect for convenience, explicit selection for control."
+    },
+    {
+      "id": "req-multidevice-core",
+      "title": "Multi-device-ready core",
+      "statement": "The core maintains a device registry with per-device capability discovery (power, speed, cadence, HR, control) and a metric-to-source mapping, so every displayed value resolves through an assigned source. In this slice all metrics auto-assign to the trainer; device identity is separate from transport so future ANT+/BLE dual sensors need no redesign.",
+      "kind": "structural",
+      "priority": "must",
+      "rationale": "Next slice adds HR/cadence sensors and source selection; the core must already be shaped for it."
+    },
+    {
+      "id": "req-persistence",
+      "title": "Persisted user state",
+      "statement": "Remembered trainer identity, last target wattage, and paused state persist across app restarts.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Restart mid-interval must resume exactly where the ride left off."
+    },
+    {
+      "id": "req-desktop-ui",
+      "title": "Compose Multiplatform desktop window",
+      "statement": "The app is a Compose Multiplatform desktop window running on Linux (Wayland/X11), rendering the ride and devices screens from shared state flows.",
+      "kind": "structural",
+      "priority": "must",
+      "rationale": "Desktop-first is the locked direction; Compose keeps one Kotlin stack across core and UI."
+    },
+    {
+      "id": "req-hardware-acceptance",
+      "title": "5-minute real-trainer acceptance",
+      "statement": "Acceptance is a 5-minute ride on the real Hammer: connect, live telemetry, \u00b13 W changes felt, direct entry, pause/resume, a deliberate Bluetooth interruption that recovers, then disconnect with load release. Missing hardware evidence means not passed; the fake client can never produce a pass.",
+      "kind": "non_functional",
+      "priority": "must",
+      "rationale": "The MVP's whole point is real-hardware proof; simulated passes are explicitly rejected."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "ac-discovery-lists-hammer",
+      "statement": "With the Hammer powered on near the NUC, the devices screen lists it as a candidate from a live BlueZ scan.",
+      "requirement_ids": [
+        "req-ble-discovery",
+        "req-devices-screen"
+      ]
+    },
+    {
+      "id": "ac-connect-classifies-protocol",
+      "statement": "Connecting to the Hammer discovers its GATT inventory and the classifier labels the protocol from that evidence; captured constants are committed as a sanitized fixture.",
+      "requirement_ids": [
+        "req-connect-classify"
+      ]
+    },
+    {
+      "id": "ac-erg-engages-on-connect",
+      "statement": "On connect, ERG engages at the remembered wattage; a fresh install engages at 120 W without any user action beyond connecting.",
+      "requirement_ids": [
+        "req-erg-auto",
+        "req-persistence"
+      ]
+    },
+    {
+      "id": "ac-adjust-mechanisms",
+      "statement": "\u22123/+3 buttons, \u2191/\u2193 keys (field unfocused), and direct entry in the field all change the target; a typed value applies only on Enter or focus loss.",
+      "requirement_ids": [
+        "req-target-adjust"
+      ]
+    },
+    {
+      "id": "ac-clamping-visible",
+      "statement": "Entering 10 W and 900 W clamps to 50 W and 600 W respectively, each with a visible clamped notice.",
+      "requirement_ids": [
+        "req-target-clamp"
+      ]
+    },
+    {
+      "id": "ac-rapid-clicks-coalesce",
+      "statement": "Five rapid \u00b13 W clicks within the debounce window produce exactly one trainer target write of the final value.",
+      "requirement_ids": [
+        "req-target-coalesce"
+      ]
+    },
+    {
+      "id": "ac-drop-recovers-riding",
+      "statement": "A deliberate Bluetooth interruption mid-ride (trainer power-cycled or range) recovers automatically and reapplies the riding target.",
+      "requirement_ids": [
+        "req-reconnect"
+      ]
+    },
+    {
+      "id": "ac-drop-recovers-paused",
+      "statement": "A Bluetooth interruption while paused recovers into the paused state without reapplying the riding target.",
+      "requirement_ids": [
+        "req-reconnect",
+        "req-pause"
+      ]
+    },
+    {
+      "id": "ac-pause-resume-cycle",
+      "statement": "Pause drops the trainer to its lowest supported load while telemetry stays live; Resume reapplies the remembered target.",
+      "requirement_ids": [
+        "req-pause"
+      ]
+    },
+    {
+      "id": "ac-pause-survives-restart",
+      "statement": "Quitting the app while paused and relaunching returns to the paused state with the saved target not applied.",
+      "requirement_ids": [
+        "req-pause",
+        "req-persistence"
+      ]
+    },
+    {
+      "id": "ac-stale-telemetry-dash",
+      "statement": "When telemetry stops while the connection appears alive, readings show '\u2014' within 3 seconds and a recovery attempt is visible in the status line.",
+      "requirement_ids": [
+        "req-telemetry-display"
+      ]
+    },
+    {
+      "id": "ac-disconnect-releases-load",
+      "statement": "Disconnect requests minimum load before releasing; when the release write fails, the UI shows resistance-release as unconfirmed instead of claiming success.",
+      "requirement_ids": [
+        "req-safe-disconnect"
+      ]
+    },
+    {
+      "id": "ac-registry-resolves-sources",
+      "statement": "The device registry reports the trainer's discovered capabilities and every displayed metric resolves through the metric-source map (all auto-assigned to the trainer this slice).",
+      "requirement_ids": [
+        "req-multidevice-core"
+      ]
+    },
+    {
+      "id": "ac-desktop-window-rides",
+      "statement": "The app opens a desktop window on Linux rendering live power, target, speed, and status from shared state flows.",
+      "requirement_ids": [
+        "req-desktop-ui"
+      ]
+    },
+    {
+      "id": "ac-five-minute-smoke-ride",
+      "statement": "The 5-minute acceptance ride on the real Hammer completes the full checklist with recorded evidence (log excerpt or screen capture); the run cannot pass without it.",
+      "requirement_ids": [
+        "req-hardware-acceptance",
+        "req-erg-auto",
+        "req-target-adjust",
+        "req-pause",
+        "req-reconnect",
+        "req-safe-disconnect"
+      ]
+    }
+  ],
+  "interaction_surfaces": [
+    {
+      "id": "surf-ride-screen",
+      "title": "Desktop ride screen",
+      "kind": "ui",
+      "source": "planned",
+      "description": "Compose Desktop ride screen: large actual power, target wattage, speed km/h, connection/control status line, \u22123/+3 W buttons, numeric target field (commit on Enter/focus loss), \u2191/\u2193 key handling when field unfocused, Pause/Resume, and Disconnect."
+    },
+    {
+      "id": "surf-devices-screen",
+      "title": "Devices screen",
+      "kind": "ui",
+      "source": "planned",
+      "description": "Devices screen reachable at all times: live scan list (name, RSSI, advertised services), select-as-trainer action, remembered trainer display, replace flow; auto-connect on launch once a trainer is remembered."
+    },
+    {
+      "id": "surf-ble-adapter",
+      "title": "BlueZ BLE trainer adapter",
+      "kind": "library",
+      "source": "planned",
+      "description": "BlueFalconTrainerClient in core/ble implementing the increment-001 TrainerClient interface over Blue Falcon's BlueZ (sdbus) JVM engine: scan, connect, service discovery, telemetry notifications, control writes, disconnect with min-load handoff."
+    },
+    {
+      "id": "surf-erg-controller",
+      "title": "ErgController",
+      "kind": "library",
+      "source": "planned",
+      "description": "Core erg state machine: target wattage + paused flag + requested-vs-confirmed state, 50\u2013600 W clamping with notice, ~300 ms coalescing with single in-flight write, reconnect-with-backoff policy honoring pause, min-load-then-disconnect sequence. Sole writer of trainer target power."
+    },
+    {
+      "id": "surf-device-registry",
+      "title": "Device registry and metric sources",
+      "kind": "library",
+      "source": "planned",
+      "description": "Core device registry: per-device identity (separate from transport), capability discovery from GATT inventory (power, speed, cadence, HR, control), and metric-to-source mapping; auto-assigns all metrics to the trainer in this slice."
+    },
+    {
+      "id": "surf-settings-store",
+      "title": "Persisted settings",
+      "kind": "file",
+      "source": "planned",
+      "description": "Settings file (~/.config/trainerapp/settings.json): remembered trainer identity, last target wattage (default 120 W on first use), paused flag. Written by the core store, read at launch to drive auto-connect and ERG engage."
+    },
+    {
+      "id": "surf-hardware-fixture",
+      "title": "Captured Hammer GATT fixture",
+      "kind": "file",
+      "source": "planned",
+      "description": "Sanitized GATT inventory captured from the live Hammer (via the increment-001 probe script), committed as a classifier test fixture; finalizes ProtocolClassifier's CycleOps constants and records minimum-load capability evidence."
+    }
+  ],
+  "constraints": [
+    "The control protocol is determined by the trainer's actual discovered GATT inventory; hardware capture gates the protocol work.",
+    "BLE only in this slice; ANT+ must remain a future transport without core redesign (device identity is separate from transport).",
+    "No device addresses are committed; captured fixtures are sanitized by construction (increment-001 inventory model).",
+    "Kotlin Multiplatform codebase from increment 001: shared core owns all trainer logic; platform UIs render state flows only.",
+    "Gradle wrapper build on JDK 21; the app has no network dependency at runtime beyond BLE."
+  ],
+  "non_goals": [
+    "Heart-rate display and BLE HR strap support \u2014 next slice, required before the app is called training-usable.",
+    "Cadence sensors and per-metric source-selection UI \u2014 next slice.",
+    "ANT+ implementation (designed for, not built).",
+    "Workout recording, FIT files, uploads, workout definitions, rider profiles.",
+    "Android as a target (launcher stays compile-only); charts or ride analytics."
+  ],
+  "decisions": [
+    {
+      "decision": "Linux desktop first with a Compose Multiplatform desktop window; Android deferred.",
+      "rationale": "User's locked direction from the grill session; Compose keeps one Kotlin stack across core and future Android frontend."
+    },
+    {
+      "decision": "Blue Falcon with the BlueZ sdbus engine as the JVM BLE stack.",
+      "rationale": "Kotlin-native API, same library can serve the Android engine later; avoids hand-rolling GATT caching, property signals, and reconnect semantics over raw D-Bus."
+    },
+    {
+      "decision": "ERG engages automatically on connect at the remembered wattage (default 120 W); no enable toggle.",
+      "rationale": "The app is always an ERG controller; grill decision D3."
+    },
+    {
+      "decision": "3 W adjustment steps via buttons, field, and arrow keys; range clamped 50\u2013600 W; rapid changes coalesce at ~300 ms.",
+      "rationale": "Grill decisions D4/D5 \u2014 fine steps, safe bounds, no trainer flooding."
+    },
+    {
+      "decision": "Automatic reconnect with increasing delays; pause survives reconnect and restart; deliberate disconnect cancels retrying.",
+      "rationale": "Grill decisions D6/D7 \u2014 a dropped link must never end a ride or surprise the rider."
+    },
+    {
+      "decision": "Telemetry stale after 3 seconds shows '\u2014' and triggers recovery; the UI never freezes numbers.",
+      "rationale": "Grill decision D8 \u2014 frozen telemetry on an ERG trainer is a safety issue."
+    },
+    {
+      "decision": "Disconnect/exit requests minimum load first; the UI never claims a release it cannot confirm.",
+      "rationale": "Grill decision D9 \u2014 a trainer silently holding 200 W after exit is a hazard."
+    },
+    {
+      "decision": "Devices screen always available; first launch explicit selection, then auto-connect.",
+      "rationale": "Grill decision D10 \u2014 convenience without losing control over device choice."
+    },
+    {
+      "decision": "Core is multi-device now: registry, capability discovery, metric-to-source map; source-selection UI deferred to the next slice.",
+      "rationale": "Grill decision D11 \u2014 next slice's HR/cadence sensors must not force a core redesign."
+    },
+    {
+      "decision": "Acceptance is a 5-minute real-Hammer smoke test; no fake-client pass is possible.",
+      "rationale": "Grill decision D12 \u2014 the MVP's value is real-hardware proof; this slice is explicitly not training-usable until HR lands."
+    },
+    {
+      "decision": "Hardware capture (WI-A) gates the protocol work; the cycleops classifier constants stay placeholders until the live inventory is committed.",
+      "rationale": "The H1's GATT layout is unpublished; capturing first avoids building on an assumption."
+    }
+  ],
+  "business_vocabulary": [
+    {
+      "id": "term-erg",
+      "term": "ERG mode",
+      "definition": "Control mode where the trainer holds a target power regardless of cadence or speed; the app engages it automatically on connect.",
+      "aliases": [
+        "erg",
+        "target power mode"
+      ]
+    },
+    {
+      "id": "term-remembered-target",
+      "term": "Remembered target",
+      "definition": "The last user-selected wattage, persisted across restarts; default 120 W on first use.",
+      "aliases": [
+        "saved watts",
+        "last target"
+      ]
+    },
+    {
+      "id": "term-min-load",
+      "term": "Minimum supported load",
+      "definition": "The lowest load the trainer accepts via its control path; used by Pause and by disconnect/exit release.",
+      "aliases": [
+        "min load",
+        "lowest load"
+      ]
+    },
+    {
+      "id": "term-stale-telemetry",
+      "term": "Stale telemetry",
+      "definition": "No telemetry notification for 3 seconds while the connection appears alive; readings display '\u2014' and recovery is attempted.",
+      "aliases": [
+        "dead readings",
+        "stale data"
+      ]
+    },
+    {
+      "id": "term-requested-vs-confirmed",
+      "term": "Requested vs confirmed",
+      "definition": "The UI distinguishes the target the app requested from the target the trainer acknowledged; they are shown as separate states until they converge.",
+      "aliases": [
+        "control confirmation",
+        "ack state"
+      ]
+    },
+    {
+      "id": "term-capability-discovery",
+      "term": "Capability discovery",
+      "definition": "Mapping a device's discovered GATT inventory to the data types it can provide (power, speed, cadence, HR) plus whether it offers control.",
+      "aliases": [
+        "device capabilities"
+      ]
+    },
+    {
+      "id": "term-hammer",
+      "term": "Hammer",
+      "definition": "The user's first-generation CycleOps Hammer H1 (2016, direct drive): BLE 4.0 + ANT+ FE-C, measures power and speed but not cadence; the target trainer for this slice.",
+      "aliases": [
+        "H1",
+        "trainer",
+        "CycleOps Hammer"
+      ]
+    }
+  ],
+  "architecture_boundaries": [
+    "The core module must not depend on UI or Compose.",
+    "All BLE access is isolated in core/ble behind the increment-001 TrainerClient interface.",
+    "ErgController is the sole writer of trainer target power; the UI never issues GATT writes directly.",
+    "Reconnect and backoff policy lives in ErgController, not in the BLE adapter; the adapter only reports link state.",
+    "The desktop UI consumes StateFlow exclusively; no GATT types cross into UI code."
+  ],
+  "interfaces_and_data_changes": [
+    "New core packages: device/ (registry, capabilities, metric-source map), erg/ (ErgController), store/ (SettingsStore), ble/ (BlueFalconTrainerClient).",
+    "New Gradle module app-desktop (Compose Multiplatform desktop application).",
+    "New persisted settings file at ~/.config/trainerapp/settings.json (trainer identity, last wattage, paused flag).",
+    "ProtocolClassifier constants finalized from the captured Hammer inventory fixture (surf-hardware-fixture)."
+  ],
+  "rollout_and_compatibility": [
+    "app-desktop supersedes the app-linux console as the real-use entry point; app-linux is retained as a BLE diagnostic harness.",
+    "The Android app module remains compiling but is untouched this slice.",
+    "Increment-001's remaining planned work items (ble-connection, protocol-codec, hardware-capture, telemetry-erg, hardware-acceptance) are superseded by this increment's scope."
+  ],
+  "unresolved_questions": []
+}

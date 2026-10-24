@@ -1,0 +1,236 @@
+{
+  "schema_version": "2",
+  "revision": 1,
+  "context": {
+    "schema_version": "hermoso-context/v1",
+    "project_id": "project-5cf55b9fce50644cfbe9f362",
+    "feature_id": "002-desktop-ble-erg-mvp",
+    "run_id": "run-dda354b4819e8f9066e1d86e",
+    "repository": {
+      "repository": "/home/marcos/Projects/trainslowracefast",
+      "remote_url": "https://github.com/bocacorazon/trainslowracefast.git",
+      "default_branch": "main"
+    }
+  },
+  "feature_design": {
+    "context": {
+      "schema_version": "hermoso-context/v1",
+      "project_id": "project-5cf55b9fce50644cfbe9f362",
+      "feature_id": "002-desktop-ble-erg-mvp",
+      "run_id": "run-dda354b4819e8f9066e1d86e",
+      "repository": {
+        "repository": "/home/marcos/Projects/trainslowracefast",
+        "remote_url": "https://github.com/bocacorazon/trainslowracefast.git",
+        "default_branch": "main"
+      }
+    },
+    "kind": "feature-design",
+    "path": "docs/features/002-desktop-ble-erg-mvp/design/feature-design.json",
+    "revision": 1,
+    "hash": "sha256:687d149561c250c6a50acb1c494dc9ee388d0525a9137de7a0323984153f0d49"
+  },
+  "base_model": {
+    "schema_version": "hermoso-repository-model/v1",
+    "snapshot_id": "model-df3448c931557739c4f7639b65835bb3",
+    "content_hash": "sha256:df3448c931557739c4f7639b65835bb3d8a90053c9cabcbf967025ddd6baee89",
+    "source_revision": "85038a46a9d7d3b9be20145f1aed7109a61aa807",
+    "vocabulary_version": "v1"
+  },
+  "producer": {
+    "skill": "hermeso-verification-author",
+    "runtime": "agent"
+  },
+  "aggregation": {
+    "strategy": "all_required"
+  },
+  "artifacts": [
+    {
+      "id": "probe-hardware-evidence",
+      "kind": "probe",
+      "path": "probes/collect-hardware-evidence.sh",
+      "content_hash": "sha256:6ce803640c8150a6afd75fee90e08ea7e9c1d191ea4aae83e0d03c9e71e13a88"
+    }
+  ],
+  "judgments": [
+    {
+      "id": "j-jvm-tests",
+      "title": "Core logic test suite (ErgController, registry, settings, classifier, adapter contracts)",
+      "modality": "deterministic",
+      "requirement_ids": [
+        "req-erg-auto",
+        "req-persistence",
+        "req-target-adjust",
+        "req-target-clamp",
+        "req-target-coalesce",
+        "req-reconnect",
+        "req-pause",
+        "req-multidevice-core",
+        "req-connect-classify"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-erg-engages-on-connect",
+        "ac-adjust-mechanisms",
+        "ac-clamping-visible",
+        "ac-rapid-clicks-coalesce",
+        "ac-drop-recovers-riding",
+        "ac-drop-recovers-paused",
+        "ac-pause-resume-cycle",
+        "ac-pause-survives-restart",
+        "ac-registry-resolves-sources",
+        "ac-connect-classifies-protocol"
+      ],
+      "surface_ids": [
+        "surf-erg-controller",
+        "surf-device-registry",
+        "surf-settings-store",
+        "surf-hardware-fixture",
+        "surf-ble-adapter"
+      ],
+      "execution": {
+        "command": ["./gradlew", "jvmTest"],
+        "timeout_seconds": 1200
+      },
+      "oracle": {
+        "type": "exit_code",
+        "expected": "0"
+      },
+      "required_evidence": [
+        "Gradle jvmTest passes: ErgController engages ERG at remembered wattage with 120 W first-use default; 3 W step math and direct-entry commit semantics; 50-600 W clamping including boundary entries 49/50/600/601; rapid adjustments coalesce to one in-flight write; reconnect state machine reapplies target when riding and stays paused when paused; pause persists across restart via persisted state; Resume reapplies saved target; device registry reports capabilities from GATT inventory; metric-source map resolves all metrics to the trainer; settings store round-trips trainer identity, wattage, paused flag; ProtocolClassifier labels the committed Hammer fixture controllable with constants matching the fixture; BLE adapter contract tests against the fake Blue Falcon wrapper"
+      ]
+    },
+    {
+      "id": "j-desktop-build",
+      "title": "Compose Multiplatform desktop module builds",
+      "modality": "deterministic",
+      "requirement_ids": ["req-desktop-ui"],
+      "acceptance_criterion_ids": ["ac-desktop-window-rides"],
+      "surface_ids": ["surf-ride-screen", "surf-devices-screen"],
+      "execution": {
+        "command": ["./gradlew", ":app-desktop:build"],
+        "timeout_seconds": 1200
+      },
+      "oracle": {
+        "type": "exit_code",
+        "expected": "0"
+      },
+      "required_evidence": [
+        "app-desktop module (Compose Multiplatform desktop with ride and devices screens backed by shared state flows) compiles and its checks pass"
+      ]
+    },
+    {
+      "id": "j-repo-build",
+      "title": "Whole repository build stays green",
+      "modality": "deterministic",
+      "requirement_ids": ["req-desktop-ui", "req-multidevice-core"],
+      "acceptance_criterion_ids": ["ac-desktop-window-rides", "ac-registry-resolves-sources"],
+      "surface_ids": ["surf-ride-screen", "surf-devices-screen", "surf-ble-adapter", "surf-erg-controller"],
+      "execution": {
+        "command": ["./gradlew", "build"],
+        "timeout_seconds": 1800
+      },
+      "oracle": {
+        "type": "exit_code",
+        "expected": "0"
+      },
+      "required_evidence": [
+        "Full Gradle build exits 0: core (jvm + android targets), app (Android, untouched increment-001 launcher still compiles), app-linux (console diagnostic harness), and app-desktop (new) — no regression to increment-001 modules"
+      ]
+    },
+    {
+      "id": "j-hardware-capture",
+      "title": "Hardware capture provenance and classifier finalization",
+      "modality": "rubric",
+      "requirement_ids": [
+        "req-connect-classify",
+        "req-ble-discovery",
+        "req-devices-screen"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-connect-classifies-protocol",
+        "ac-discovery-lists-hammer"
+      ],
+      "surface_ids": ["surf-ble-adapter", "surf-hardware-fixture"],
+      "execution": {
+        "command": ["bash", "probes/collect-hardware-evidence.sh"],
+        "timeout_seconds": 120,
+        "working_directory": "docs/features/002-desktop-ble-erg-mvp/design"
+      },
+      "oracle": {
+        "type": "rubric"
+      },
+      "rubric": {
+        "judge": "rubric",
+        "criteria": [
+          "R1 Discovery: the evidence shows the powered-on Hammer was found by a live BlueZ scan on the target Linux machine, listed by advertised name without a hard-coded address.",
+          "R2 Capture provenance: the committed fixture (core/src/commonTest/resources/fixtures/hammer-gatt-inventory.json) carries capture provenance (date, method, machine) in the implementation notes or fixture itself, and its service/characteristic list is consistent with real hardware capture, not a hand-invented FTMS template.",
+          "R3 Classifier finalization: ProtocolClassifier constants match the captured fixture; the fixture's control path (FTMS 0x1826/0x2AD9 or the CycleOps proprietary service actually observed) is reflected in the committed constants, and no placeholder markers remain.",
+          "R4 Minimum-load evidence: the capture notes state what lowest-load command the trainer accepted (or explicitly record that none exists), since Pause and safe-disconnect depend on it.",
+          "R5 Privacy: the committed fixture and evidence contain no Bluetooth addresses (probe privacy scan reports clean)."
+        ]
+      },
+      "required_evidence": [
+        "probe output: fixture present, parseable, and service list printed",
+        "probe output: classifier constants with no placeholder markers",
+        "probe output: privacy scan clean",
+        "implementation notes with capture provenance"
+      ]
+    },
+    {
+      "id": "j-smoke-ride",
+      "title": "5-minute smoke ride on the physical Hammer",
+      "modality": "rubric",
+      "requirement_ids": [
+        "req-hardware-acceptance",
+        "req-erg-auto",
+        "req-target-adjust",
+        "req-pause",
+        "req-reconnect",
+        "req-safe-disconnect",
+        "req-telemetry-display",
+        "req-ble-discovery",
+        "req-devices-screen"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-five-minute-smoke-ride",
+        "ac-discovery-lists-hammer",
+        "ac-drop-recovers-riding",
+        "ac-drop-recovers-paused",
+        "ac-pause-resume-cycle",
+        "ac-stale-telemetry-dash",
+        "ac-disconnect-releases-load"
+      ],
+      "surface_ids": [
+        "surf-ride-screen",
+        "surf-devices-screen",
+        "surf-ble-adapter",
+        "surf-erg-controller"
+      ],
+      "execution": {
+        "command": ["bash", "probes/collect-hardware-evidence.sh"],
+        "timeout_seconds": 120,
+        "working_directory": "docs/features/002-desktop-ble-erg-mvp/design"
+      },
+      "oracle": {
+        "type": "rubric"
+      },
+      "rubric": {
+        "judge": "rubric",
+        "criteria": [
+          "R1 Connect and ERG: the ride evidence shows the app connected to the real Hammer from the devices screen and ERG engaged automatically at the remembered wattage (120 W on a fresh profile) without any enable action.",
+          "R2 Live telemetry: actual power and speed were live on the ride screen for the duration; the evidence shows target vs actual displayed separately.",
+          "R3 Adjustment: ±3 W buttons, ↑/↓ keys, and direct entry each changed the load during the ride, with the trainer physically responding; out-of-range entries clamped with a visible notice.",
+          "R4 Interruption recovery: a deliberate Bluetooth interruption mid-ride recovered automatically and reapplied the riding target; an interruption while paused recovered into the paused state.",
+          "R5 Pause/Resume: Pause dropped the trainer to its lowest supported load with telemetry still live; Resume reapplied the target.",
+          "R6 Staleness: the evidence shows (log or screen capture) readings displaying '—' within 3 seconds of telemetry loss, with a visible recovery attempt in the status line.",
+          "R7 Safe disconnect: disconnect requested minimum load before releasing; the evidence confirms the trainer released resistance, or shows the unconfirmed-release state honestly when it could not.",
+          "R8 Evidence quality: the ride evidence (log excerpt and/or screen capture) is committed under docs/features/002-desktop-ble-erg-mvp/implementation/, is at least 5 minutes of riding, contains no Bluetooth addresses, and reflects the real Hammer (not the fake client)."
+        ]
+      },
+      "required_evidence": [
+        "probe output: implementation evidence files listed and non-empty",
+        "committed ride evidence: log excerpt or screen capture of the full checklist ride",
+        "rider confirmation of each checklist item in the evidence doc"
+      ]
+    }
+  ]
+}
