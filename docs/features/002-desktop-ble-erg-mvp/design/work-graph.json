@@ -1,6 +1,6 @@
 {
   "schema_version": "2",
-  "revision": 2,
+  "revision": 1,
   "context": {
     "schema_version": "hermoso-context/v1",
     "project_id": "project-5cf55b9fce50644cfbe9f362",
@@ -20,43 +20,27 @@
     {
       "id": "wi-hardware-capture",
       "title": "Hardware capture gate: live Hammer GATT inventory + classifier finalization",
-      "prompt": "GATE ITEM \u2014 the physical CycleOps Hammer must be powered on and within BLE range of this machine before starting; if it is not, block with reason 'hammer unavailable'. Read docs/increments/002-desktop-ble-erg-mvp.md and docs/features/002-desktop-ble-erg-mvp/design/design.md first. Use standard BlueZ tooling (bluetoothctl scan le / info / gatt listing) to capture the trainer's FULL discovered GATT inventory: every service UUID, characteristic UUIDs with their properties, and descriptors. Save the sanitized inventory (no device address fields anywhere) as a JSON fixture at core/src/commonTest/resources/fixtures/hammer-gatt-inventory.json using the increment-001 GattInventory model from core/src/commonMain/kotlin/com/trainerapp/core/protocol/ProtocolClassifier.kt. Then finalize ProtocolClassifier's constants from the REAL captured data: if the trainer exposes FTMS (service 00001826 with control point 00002AD9) set FTMS constants accordingly; if it exposes the CycleOps/Saris proprietary service instead, replace the placeholder CYCLEOPS_SERVICE constant with the actual captured UUID(s) and update the classification logic to match the real UUID form. Update the ProtocolClassifierTest fixtures so classification tests assert against the captured inventory shape (keep the synthetic FTMS tests too). Also determine and record, in docs/features/002-desktop-ble-erg-mvp/implementation/hardware-capture-notes.md: (a) capture provenance \u2014 date, method, machine; (b) what the trainer's lowest supported load command is (FTMS minimum target power, or the proprietary equivalent observed), or an explicit note that none could be determined; (c) whether the trainer responds to target-power writes and how the response is acknowledged. Do NOT change anything outside core/protocol, the new fixture, and the implementation notes. Validation: ./gradlew jvmTest must pass with the finalized classifier.",
+      "prompt": "GATE ITEM — the physical CycleOps Hammer must be powered on and within BLE range of this machine before starting; if it is not, block with reason 'hammer unavailable'. Read docs/increments/002-desktop-ble-erg-mvp.md and docs/features/002-desktop-ble-erg-mvp/design/design.md first. Use standard BlueZ tooling (bluetoothctl scan le / info / gatt listing) to capture the trainer's FULL discovered GATT inventory: every service UUID, characteristic UUIDs with their properties, and descriptors. Save the sanitized inventory (no device address fields anywhere) as a JSON fixture at core/src/commonTest/resources/fixtures/hammer-gatt-inventory.json using the increment-001 GattInventory model from core/src/commonMain/kotlin/com/trainerapp/core/protocol/ProtocolClassifier.kt. Then finalize ProtocolClassifier's constants from the REAL captured data: if the trainer exposes FTMS (service 00001826 with control point 00002AD9) set FTMS constants accordingly; if it exposes the CycleOps/Saris proprietary service instead, replace the placeholder CYCLEOPS_SERVICE constant with the actual captured UUID(s) and update the classification logic to match the real UUID form. Update the ProtocolClassifierTest fixtures so classification tests assert against the captured inventory shape (keep the synthetic FTMS tests too). Also determine and record, in docs/features/002-desktop-ble-erg-mvp/implementation/hardware-capture-notes.md: (a) capture provenance — date, method, machine; (b) what the trainer's lowest supported load command is (FTMS minimum target power, or the proprietary equivalent observed), or an explicit note that none could be determined; (c) whether the trainer responds to target-power writes and how the response is acknowledged. Do NOT change anything outside core/protocol, the new fixture, and the implementation notes. Validation: ./gradlew jvmTest must pass with the finalized classifier.",
       "acceptance_criteria": [
         "Sanitized fixture committed at core/src/commonTest/resources/fixtures/hammer-gatt-inventory.json with the full captured inventory (no Bluetooth addresses)",
         "ProtocolClassifier constants and logic match the captured inventory; no placeholder markers remain; classifier tests pass against the captured fixture",
         "Implementation notes record capture provenance and the minimum-load capability finding",
         "./gradlew jvmTest exits 0"
       ],
-      "requirement_ids": [
-        "req-ble-discovery",
-        "req-connect-classify",
-        "req-devices-screen"
-      ],
-      "acceptance_criterion_ids": [
-        "ac-discovery-lists-hammer",
-        "ac-connect-classifies-protocol"
-      ],
-      "surface_ids": [
-        "surf-hardware-fixture",
-        "surf-ble-adapter"
-      ],
+      "requirement_ids": ["req-ble-discovery", "req-connect-classify", "req-devices-screen"],
+      "acceptance_criterion_ids": ["ac-discovery-lists-hammer", "ac-connect-classifies-protocol"],
+      "surface_ids": ["surf-hardware-fixture", "surf-ble-adapter"],
       "worker": {
         "profile": "cloud-builder",
-        "skills": [
-          {
-            "name": "hermoso-construction"
-          }
-        ]
+        "skills": [{"name": "hermoso-construction"}]
       },
       "runtime_budget_seconds": 3600,
-      "validation_commands": [
-        "./gradlew jvmTest"
-      ]
+      "validation_commands": ["./gradlew jvmTest"]
     },
     {
       "id": "wi-core-erg",
       "title": "Core ERG logic: ErgController, SettingsStore, DeviceRegistry, MetricSourceMap",
-      "prompt": "Read docs/increments/002-desktop-ble-erg-mvp.md, docs/features/002-desktop-ble-erg-mvp/design/design.md, and the increment-001 core sources (core/src/commonMain/kotlin/com/trainerapp/core/) first. Build in core commonMain, with TDD (tests in commonTest, run with ./gradlew jvmTest): (1) erg/ErgController \u2014 the sole writer of trainer target power. Owns target wattage + paused flag + requested-vs-confirmed state. Rules: targets clamped to 50..600 W with a clamped-notice event; rapid successive changes coalesce via ~300 ms debounce so at most one write is in flight, sending only the final value; on unexpected disconnect it drives reconnection attempts with increasing delays (1s, 2s, 5s, 10s, then 30s steady-state) through the TrainerClient until connected or the user disconnects; on reconnect it reapplies the remembered target when riding but stays paused when paused; Pause requests the trainer's minimum supported load while keeping telemetry, Resume reapplies the remembered target; wattage adjustments while paused update the saved target only (no resistance applied); deliberate Disconnect cancels retrying and requests minimum load before releasing; the controller never reports resistance released unless the min-load write was confirmed. (2) store/SettingsStore \u2014 persists remembered trainer identity, last target wattage (default 120 W on first use), and paused flag as JSON at ~/.config/trainerapp/settings.json; round-trip tested. (3) device/DeviceRegistry \u2014 registers connected devices with identity separate from transport; capability discovery maps a GattInventory to capabilities (power, speed, cadence, heart rate, control) reusing ProtocolClassifier; device/MetricSourceMap assigns each metric to a source device, auto-assigning all metrics to the trainer in this slice. Keep the core free of UI and BLE-library dependencies; ErgController talks only to the TrainerClient interface. Follow grill decision D3: ERG engages automatically at the remembered wattage on connect. Validation: ./gradlew jvmTest with thorough ErgController tests (clamp boundaries 49/50/600/601, coalescing, reconnect-when-riding vs when-paused, pause persistence across restart, min-load ordering on disconnect).",
+      "prompt": "Read docs/increments/002-desktop-ble-erg-mvp.md, docs/features/002-desktop-ble-erg-mvp/design/design.md, and the increment-001 core sources (core/src/commonMain/kotlin/com/trainerapp/core/) first. Build in core commonMain, with TDD (tests in commonTest, run with ./gradlew jvmTest): (1) erg/ErgController — the sole writer of trainer target power. Owns target wattage + paused flag + requested-vs-confirmed state. Rules: targets clamped to 50..600 W with a clamped-notice event; rapid successive changes coalesce via ~300 ms debounce so at most one write is in flight, sending only the final value; on unexpected disconnect it drives reconnection attempts with increasing delays (1s, 2s, 5s, 10s, then 30s steady-state) through the TrainerClient until connected or the user disconnects; on reconnect it reapplies the remembered target when riding but stays paused when paused; Pause requests the trainer's minimum supported load while keeping telemetry, Resume reapplies the remembered target; wattage adjustments while paused update the saved target only (no resistance applied); deliberate Disconnect cancels retrying and requests minimum load before releasing; the controller never reports resistance released unless the min-load write was confirmed. (2) store/SettingsStore — persists remembered trainer identity, last target wattage (default 120 W on first use), and paused flag as JSON at ~/.config/trainerapp/settings.json; round-trip tested. (3) device/DeviceRegistry — registers connected devices with identity separate from transport; capability discovery maps a GattInventory to capabilities (power, speed, cadence, heart rate, control) reusing ProtocolClassifier; device/MetricSourceMap assigns each metric to a source device, auto-assigning all metrics to the trainer in this slice. Keep the core free of UI and BLE-library dependencies; ErgController talks only to the TrainerClient interface. Follow grill decision D3: ERG engages automatically at the remembered wattage on connect. Validation: ./gradlew jvmTest with thorough ErgController tests (clamp boundaries 49/50/600/601, coalescing, reconnect-when-riding vs when-paused, pause persistence across restart, min-load ordering on disconnect).",
       "acceptance_criteria": [
         "ErgController unit tests cover clamp boundaries, coalescing to a single write, reconnect reapply-when-riding vs stay-paused, pause persistence, and min-load-before-disconnect ordering",
         "SettingsStore round-trips trainer identity, wattage (default 120 W), and paused flag",
@@ -64,55 +48,20 @@
         "Core stays free of UI and BLE-library dependencies",
         "./gradlew jvmTest exits 0"
       ],
-      "requirement_ids": [
-        "req-erg-auto",
-        "req-persistence",
-        "req-target-adjust",
-        "req-target-clamp",
-        "req-target-coalesce",
-        "req-reconnect",
-        "req-pause",
-        "req-multidevice-core"
-      ],
-      "acceptance_criterion_ids": [
-        "ac-erg-engages-on-connect",
-        "ac-adjust-mechanisms",
-        "ac-clamping-visible",
-        "ac-rapid-clicks-coalesce",
-        "ac-drop-recovers-riding",
-        "ac-drop-recovers-paused",
-        "ac-pause-resume-cycle",
-        "ac-pause-survives-restart",
-        "ac-registry-resolves-sources"
-      ],
-      "surface_ids": [
-        "surf-erg-controller",
-        "surf-device-registry",
-        "surf-settings-store"
-      ],
+      "requirement_ids": ["req-erg-auto", "req-persistence", "req-target-adjust", "req-target-clamp", "req-target-coalesce", "req-reconnect", "req-pause", "req-multidevice-core"],
+      "acceptance_criterion_ids": ["ac-erg-engages-on-connect", "ac-adjust-mechanisms", "ac-clamping-visible", "ac-rapid-clicks-coalesce", "ac-drop-recovers-riding", "ac-drop-recovers-paused", "ac-pause-resume-cycle", "ac-pause-survives-restart", "ac-registry-resolves-sources"],
+      "surface_ids": ["surf-erg-controller", "surf-device-registry", "surf-settings-store"],
       "worker": {
         "profile": "cloud-builder",
-        "skills": [
-          {
-            "name": "hermeso-construction"
-          },
-          {
-            "name": "test-driven-development"
-          },
-          {
-            "name": "systematic-debugging"
-          }
-        ]
+        "skills": [{"name": "hermeso-construction"}, {"name": "test-driven-development"}, {"name": "systematic-debugging"}]
       },
       "runtime_budget_seconds": 7200,
-      "validation_commands": [
-        "./gradlew jvmTest"
-      ]
+      "validation_commands": ["./gradlew jvmTest"]
     },
     {
       "id": "wi-ble-adapter",
       "title": "BlueZ BLE adapter: BlueFalconTrainerClient implementing TrainerClient",
-      "prompt": "DEPENDS ON the hardware-capture fixture and finalized classifier constants (merge the parent branch first; if the fixture is missing, block). Read docs/features/002-desktop-ble-erg-mvp/design/design.md (section 4) and the increment-001 TrainerClient contract first. Add the Blue Falcon Kotlin/JVM BLE library (sdbus/BlueZ engine) to core and implement core/src/commonMain/kotlin/com/trainerapp/core/ble/BlueFalconTrainerClient.kt implementing the increment-01 TrainerClient interface: scan (BlueZ LE scan surfacing name, RSSI, advertised services as TrainerCandidate \u2014 no addresses in the candidate model), connect, full GATT service discovery producing the sanitized GattInventory, telemetry notifications parsed into TrainerTelemetry (power, speed), target-power control writes using the protocol path the captured fixture shows (FTMS control point 0x2AD9 or the CycleOps proprietary path the capture finalized), minimum-load request, and disconnect. Isolate all Blue Falcon types inside core/ble \u2014 nothing BLE-specific may leak into the domain or UI. Write contract tests against a fake Blue Falcon wrapper (the real adapter is exercised on hardware in the smoke-ride item, not here). If Blue Falcon's sdbus engine requires a system dependency or D-Bus permission on this machine, document what was needed in docs/features/002-desktop-ble-erg-mvp/implementation/ble-adapter-notes.md. Validation: ./gradlew jvmTest exits 0.",
+      "prompt": "DEPENDS ON the hardware-capture fixture and finalized classifier constants (merge the parent branch first; if the fixture is missing, block). Read docs/features/002-desktop-ble-erg-mvp/design/design.md (section 4) and the increment-001 TrainerClient contract first. Add the Blue Falcon Kotlin/JVM BLE library (sdbus/BlueZ engine) to core and implement core/src/commonMain/kotlin/com/trainerapp/core/ble/BlueFalconTrainerClient.kt implementing the increment-01 TrainerClient interface: scan (BlueZ LE scan surfacing name, RSSI, advertised services as TrainerCandidate — no addresses in the candidate model), connect, full GATT service discovery producing the sanitized GattInventory, telemetry notifications parsed into TrainerTelemetry (power, speed), target-power control writes using the protocol path the captured fixture shows (FTMS control point 0x2AD9 or the CycleOps proprietary path the capture finalized), minimum-load request, and disconnect. Isolate all Blue Falcon types inside core/ble — nothing BLE-specific may leak into the domain or UI. Write contract tests against a fake Blue Falcon wrapper (the real adapter is exercised on hardware in the smoke-ride item, not here). If Blue Falcon's sdbus engine requires a system dependency or D-Bus permission on this machine, document what was needed in docs/features/002-desktop-ble-erg-mvp/implementation/ble-adapter-notes.md. Validation: ./gradlew jvmTest exits 0.",
       "acceptance_criteria": [
         "BlueFalconTrainerClient implements the full TrainerClient contract with all Blue Falcon types isolated in core/ble",
         "Scan produces TrainerCandidate instances without addresses; connect produces the sanitized GattInventory; telemetry parses to TrainerTelemetry",
@@ -120,99 +69,43 @@
         "Contract tests against a fake Blue Falcon wrapper pass",
         "./gradlew jvmTest exits 0"
       ],
-      "requirement_ids": [
-        "req-ble-discovery",
-        "req-connect-classify",
-        "req-safe-disconnect",
-        "req-devices-screen"
-      ],
-      "acceptance_criterion_ids": [
-        "ac-discovery-lists-hammer",
-        "ac-connect-classifies-protocol",
-        "ac-disconnect-releases-load"
-      ],
-      "surface_ids": [
-        "surf-ble-adapter",
-        "surf-hardware-fixture"
-      ],
-      "parents": [
-        "wi-hardware-capture"
-      ],
+      "requirement_ids": ["req-ble-discovery", "req-connect-classify", "req-safe-disconnect", "req-devices-screen"],
+      "acceptance_criterion_ids": ["ac-discovery-lists-hammer", "ac-connect-classifies-protocol", "ac-disconnect-releases-load"],
+      "surface_ids": ["surf-ble-adapter", "surf-hardware-fixture"],
+      "parents": ["wi-hardware-capture"],
       "worker": {
         "profile": "cloud-builder",
-        "skills": [
-          {
-            "name": "hermeso-construction"
-          },
-          {
-            "name": "test-driven-development"
-          },
-          {
-            "name": "systematic-debugging"
-          }
-        ]
+        "skills": [{"name": "hermeso-construction"}, {"name": "test-driven-development"}, {"name": "systematic-debugging"}]
       },
       "runtime_budget_seconds": 7200,
-      "validation_commands": [
-        "./gradlew jvmTest"
-      ]
+      "validation_commands": ["./gradlew jvmTest"]
     },
     {
       "id": "wi-desktop-ui",
       "title": "Compose Desktop app: ride screen + devices screen over shared state flows",
-      "prompt": "DEPENDS ON wi-core-erg and wi-ble-adapter (merge parent branches first; if ErgController or BlueFalconTrainerClient are missing, block). Read docs/features/002-desktop-ble-erg-mvp/design/design.md (section 4) and the grill decisions in docs/increments/002-desktop-ble-erg-mvp.md. NOTE: wi-ble-adapter is running in PARALLEL \u2014 compile and wire the UI against the shared core contracts (ErgController, SettingsStore, DeviceRegistry, FakeTrainerClient); the real BlueFalconTrainerClient wiring is a small integration change when the adapter lands, do not wait for it. Create the app-desktop Gradle module: a Compose Multiplatform desktop application (Kotlin JVM target, JDK 21 toolchain to match the repo). Wire it to the shared core only through ErgController, DeviceRegistry/MetricSourceMap, and SettingsStore \u2014 consume StateFlow exclusively; no BLE or GATT types in UI code; the UI never writes to the trainer directly. Ride screen: large actual power, target wattage (visually distinct from actual), speed km/h, status line (connection/control state, reconnect attempts, clamped notices, stale indicator); \u22123 W / +3 W buttons; numeric target field that commits only on Enter or focus loss; \u2191/\u2193 keys adjust 3 W when the field is not focused; Pause/Resume toggle; Disconnect button. Devices screen: live scan list (name, RSSI, advertised services), select-as-trainer, remembered-trainer display, replace flow; on launch auto-connect to the remembered trainer and let ERG engage automatically; first launch shows the devices screen for explicit selection. Stale telemetry (no update for 3 s) renders '\u2014' with a visible recovery state. Settings load at launch drives auto-connect and the remembered target. On app exit: min-load request then disconnect, with an honest unconfirmed-release state if the write fails. Validation: ./gradlew :app-desktop:build exits 0.",
+      "prompt": "DEPENDS ON wi-core-erg and wi-ble-adapter (merge parent branches first; if ErgController or BlueFalconTrainerClient are missing, block). Read docs/features/002-desktop-ble-erg-mvp/design/design.md (section 4) and the grill decisions in docs/increments/002-desktop-ble-erg-mvp.md. Create the app-desktop Gradle module: a Compose Multiplatform desktop application (Kotlin JVM target, JDK 21 toolchain to match the repo). Wire it to the shared core only through ErgController, DeviceRegistry/MetricSourceMap, and SettingsStore — consume StateFlow exclusively; no BLE or GATT types in UI code; the UI never writes to the trainer directly. Ride screen: large actual power, target wattage (visually distinct from actual), speed km/h, status line (connection/control state, reconnect attempts, clamped notices, stale indicator); −3 W / +3 W buttons; numeric target field that commits only on Enter or focus loss; ↑/↓ keys adjust 3 W when the field is not focused; Pause/Resume toggle; Disconnect button. Devices screen: live scan list (name, RSSI, advertised services), select-as-trainer, remembered-trainer display, replace flow; on launch auto-connect to the remembered trainer and let ERG engage automatically; first launch shows the devices screen for explicit selection. Stale telemetry (no update for 3 s) renders '—' with a visible recovery state. Settings load at launch drives auto-connect and the remembered target. On app exit: min-load request then disconnect, with an honest unconfirmed-release state if the write fails. Validation: ./gradlew :app-desktop:build exits 0.",
       "acceptance_criteria": [
         "app-desktop module compiles as a Compose Multiplatform desktop app and :app-desktop:build exits 0",
-        "Ride screen renders actual power, target, speed, status, adjustment controls, Pause/Resume, Disconnect; field commits only on Enter/focus loss; \u2191/\u2193 adjust 3 W when unfocused",
+        "Ride screen renders actual power, target, speed, status, adjustment controls, Pause/Resume, Disconnect; field commits only on Enter/focus loss; ↑/↓ adjust 3 W when unfocused",
         "Devices screen lists scan results, selects/replaces the remembered trainer; auto-connect on launch; first launch requires selection",
-        "Stale telemetry renders '\u2014' within 3 seconds with a visible recovery state",
+        "Stale telemetry renders '—' within 3 seconds with a visible recovery state",
         "UI consumes only StateFlow from the core; no BLE/GATT types in UI code"
       ],
-      "requirement_ids": [
-        "req-desktop-ui",
-        "req-telemetry-display",
-        "req-target-adjust",
-        "req-target-clamp",
-        "req-devices-screen",
-        "req-ble-discovery"
-      ],
-      "acceptance_criterion_ids": [
-        "ac-desktop-window-rides",
-        "ac-stale-telemetry-dash",
-        "ac-adjust-mechanisms",
-        "ac-clamping-visible",
-        "ac-discovery-lists-hammer"
-      ],
-      "surface_ids": [
-        "surf-ride-screen",
-        "surf-devices-screen"
-      ],
-      "parents": [
-        "wi-core-erg"
-      ],
+      "requirement_ids": ["req-desktop-ui", "req-telemetry-display", "req-target-adjust", "req-target-clamp", "req-devices-screen", "req-ble-discovery"],
+      "acceptance_criterion_ids": ["ac-desktop-window-rides", "ac-stale-telemetry-dash", "ac-adjust-mechanisms", "ac-clamping-visible", "ac-discovery-lists-hammer"],
+      "surface_ids": ["surf-ride-screen", "surf-devices-screen"],
+      "parents": ["wi-core-erg", "wi-ble-adapter"],
       "worker": {
         "profile": "cloud-builder",
-        "skills": [
-          {
-            "name": "hermeso-construction"
-          },
-          {
-            "name": "test-driven-development"
-          },
-          {
-            "name": "systematic-debugging"
-          }
-        ]
+        "skills": [{"name": "hermeso-construction"}, {"name": "test-driven-development"}, {"name": "systematic-debugging"}]
       },
       "runtime_budget_seconds": 7200,
-      "validation_commands": [
-        "./gradlew :app-desktop:build"
-      ]
+      "validation_commands": ["./gradlew :app-desktop:build"]
     },
     {
       "id": "wi-smoke-ride",
       "title": "5-minute acceptance smoke ride on the physical Hammer + evidence",
-      "prompt": "DEPENDS ON wi-desktop-ui. HARDWARE ITEM \u2014 the physical CycleOps Hammer must be powered on and within BLE range; if it is not, block with reason 'hammer unavailable'. Read docs/increments/002-desktop-ble-erg-mvp.md requirement 12 (the acceptance checklist) and docs/features/002-desktop-ble-erg-mvp/design/probes/collect-hardware-evidence.sh to see exactly what evidence gets evaluated. Run the app (./gradlew :app-desktop:run), connect to the real Hammer from the devices screen, and perform the 5-minute acceptance ride: ERG engages automatically at the remembered wattage (120 W fresh); live power/speed observed; \u00b13 W buttons, \u2191/\u2193 keys, and direct entry each change the load (trainer physically responds); an out-of-range entry clamps with a visible notice; Pause drops to minimum load with telemetry live, Resume reapplies; a deliberate Bluetooth interruption mid-ride (power-cycle the trainer) recovers automatically and reapplies the target; an interruption while paused recovers into paused; telemetry staleness shows '\u2014' within 3 s during the interruption; finally Disconnect releases the load (or shows the honest unconfirmed state). Capture evidence throughout: a log excerpt and/or screen captures. Commit the evidence to docs/features/002-desktop-ble-erg-mvp/implementation/smoke-ride.md with a per-checklist-item rider confirmation, the ride duration, and NO Bluetooth addresses (sanitize any logs). Validation: bash docs/features/002-desktop-ble-erg-mvp/design/probes/collect-hardware-evidence.sh exits 0 and shows the fixture, the evidence files, clean privacy scan, and finalized classifier.",
+      "prompt": "DEPENDS ON wi-desktop-ui. HARDWARE ITEM — the physical CycleOps Hammer must be powered on and within BLE range; if it is not, block with reason 'hammer unavailable'. Read docs/increments/002-desktop-ble-erg-mvp.md requirement 12 (the acceptance checklist) and docs/features/002-desktop-ble-erg-mvp/design/probes/collect-hardware-evidence.sh to see exactly what evidence gets evaluated. Run the app (./gradlew :app-desktop:run), connect to the real Hammer from the devices screen, and perform the 5-minute acceptance ride: ERG engages automatically at the remembered wattage (120 W fresh); live power/speed observed; ±3 W buttons, ↑/↓ keys, and direct entry each change the load (trainer physically responds); an out-of-range entry clamps with a visible notice; Pause drops to minimum load with telemetry live, Resume reapplies; a deliberate Bluetooth interruption mid-ride (power-cycle the trainer) recovers automatically and reapplies the target; an interruption while paused recovers into paused; telemetry staleness shows '—' within 3 s during the interruption; finally Disconnect releases the load (or shows the honest unconfirmed state). Capture evidence throughout: a log excerpt and/or screen captures. Commit the evidence to docs/features/002-desktop-ble-erg-mvp/implementation/smoke-ride.md with a per-checklist-item rider confirmation, the ride duration, and NO Bluetooth addresses (sanitize any logs). Validation: bash docs/features/002-desktop-ble-erg-mvp/design/probes/collect-hardware-evidence.sh exits 0 and shows the fixture, the evidence files, clean privacy scan, and finalized classifier.",
       "acceptance_criteria": [
         "5-minute ride completed on the real Hammer covering every checklist item with rider confirmation",
         "Evidence (log excerpt and/or screen captures) committed to docs/features/002-desktop-ble-erg-mvp/implementation/smoke-ride.md, address-sanitized",
@@ -220,47 +113,16 @@
         "Disconnect released the load or honestly reported an unconfirmed release",
         "bash docs/features/002-desktop-ble-erg-mvp/design/probes/collect-hardware-evidence.sh exits 0"
       ],
-      "requirement_ids": [
-        "req-hardware-acceptance",
-        "req-erg-auto",
-        "req-target-adjust",
-        "req-pause",
-        "req-reconnect",
-        "req-safe-disconnect",
-        "req-telemetry-display",
-        "req-ble-discovery",
-        "req-devices-screen"
-      ],
-      "acceptance_criterion_ids": [
-        "ac-five-minute-smoke-ride",
-        "ac-discovery-lists-hammer",
-        "ac-drop-recovers-riding",
-        "ac-drop-recovers-paused",
-        "ac-pause-resume-cycle",
-        "ac-stale-telemetry-dash",
-        "ac-disconnect-releases-load"
-      ],
-      "surface_ids": [
-        "surf-ride-screen",
-        "surf-devices-screen",
-        "surf-ble-adapter",
-        "surf-erg-controller"
-      ],
-      "parents": [
-        "wi-desktop-ui"
-      ],
+      "requirement_ids": ["req-hardware-acceptance", "req-erg-auto", "req-target-adjust", "req-pause", "req-reconnect", "req-safe-disconnect", "req-telemetry-display", "req-ble-discovery", "req-devices-screen"],
+      "acceptance_criterion_ids": ["ac-five-minute-smoke-ride", "ac-discovery-lists-hammer", "ac-drop-recovers-riding", "ac-drop-recovers-paused", "ac-pause-resume-cycle", "ac-stale-telemetry-dash", "ac-disconnect-releases-load"],
+      "surface_ids": ["surf-ride-screen", "surf-devices-screen", "surf-ble-adapter", "surf-erg-controller"],
+      "parents": ["wi-desktop-ui"],
       "worker": {
         "profile": "cloud-builder",
-        "skills": [
-          {
-            "name": "hermoso-construction"
-          }
-        ]
+        "skills": [{"name": "hermoso-construction"}]
       },
       "runtime_budget_seconds": 3600,
-      "validation_commands": [
-        "bash docs/features/002-desktop-ble-erg-mvp/design/probes/collect-hardware-evidence.sh"
-      ]
+      "validation_commands": ["bash docs/features/002-desktop-ble-erg-mvp/design/probes/collect-hardware-evidence.sh"]
     }
   ]
 }
