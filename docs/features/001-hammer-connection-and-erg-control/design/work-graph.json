@@ -1,0 +1,316 @@
+{
+  "schema_version": "2",
+  "context": {
+    "schema_version": "hermoso-context/v1",
+    "project_id": "project-5cf55b9fce50644cfbe9f362",
+    "feature_id": "001-hammer-connection-and-erg-control",
+    "run_id": "run-ff472179a41546918b913a42",
+    "repository": {
+      "repository": "/home/marcos/Projects/trainslowracefast",
+      "remote_url": "https://github.com/bocacorazon/trainslowracefast.git",
+      "default_branch": "main"
+    }
+  },
+  "producer": {
+    "skill": "hermoso-construction",
+    "runtime": "agent"
+  },
+  "revision": 1,
+  "items": [
+    {
+      "id": "wi-kmp-skeleton",
+      "title": "KMP project skeleton: core, app (Android), app-linux",
+      "prompt": "Build the minimal Kotlin Multiplatform project for the Hammer trainer diagnostic app. Read docs/increments/001-hammer-connection-and-erg-control.md (spec) and docs/features/001-hammer-connection-and-erg-control/design/feature-design.json (design) first. Module layout is a contract: `core` (Kotlin Multiplatform library, commonMain holds the TrainerClient interface, TrainerState/TrainerTelemetry state models, TrainerProtocol sealed type Ftms/CycleOpsProprietary/TelemetryOnly/Unsupported, and error types per the design's Shared domain API; commonTest holds at least one trivial test), `app` (Android application launcher: single diagnostic screen rendering static connection/telemetry states, plus the Android Bluetooth permission declarations), `app-linux` (Kotlin/JVM application launcher: console diagnostic screen with the same static states). Use the Kotlin 2.x Gradle setup with the gradle wrapper committed at the repo root. If the Android SDK is not installed on this machine, install Android cmdline-tools + platform + build-tools into ~/Android and wire local.properties. Keep BLE-library types out of commonMain. Do NOT copy GoldenCheetah or QDomyos-Zwift source. Validation: ./gradlew jvmTest, ./gradlew :app:assembleDebug, and ./gradlew :app-linux:build must all pass.",
+      "acceptance_criteria": [
+        "KMP project builds on this machine with committed gradle wrapper: core (commonMain+commonTest), app (Android launcher with diagnostic screen), app-linux (JVM launcher with console diagnostic screen)",
+        "./gradlew jvmTest, ./gradlew :app:assembleDebug, and ./gradlew :app-linux:build all exit 0",
+        "TrainerClient interface, TrainerState, TrainerTelemetry, and TrainerProtocol sealed type exist in core commonMain exactly as described in the feature design",
+        "No GoldenCheetah/QDomyos-Zwift source copied; project is Kotlin-only"
+      ],
+      "requirement_ids": [
+        "req-kmp-skeleton",
+        "req-pure-codec"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-tests-compile"
+      ],
+      "surface_ids": [
+        "surface-trainer-client",
+        "surface-android-ui",
+        "surface-linux-ui"
+      ],
+      "parents": [],
+      "validation_commands": [
+        "./gradlew jvmTest --console=plain --no-daemon",
+        "./gradlew :app:assembleDebug --console=plain --no-daemon",
+        "./gradlew :app-linux:build --console=plain --no-daemon"
+      ],
+      "runtime_budget_seconds": 5400,
+      "worker": {
+        "profile": "cloud-builder",
+        "skills": [
+          {
+            "name": "hermoso-construction"
+          },
+          {
+            "name": "test-driven-development"
+          },
+          {
+            "name": "systematic-debugging"
+          }
+        ]
+      }
+    },
+    {
+      "id": "wi-ble-connection",
+      "title": "BLE adapters: scan, connect, GATT discovery, inventory export",
+      "prompt": "Implement the platform BLE adapters and connection flow on top of the existing KMP skeleton (modules: core, app, app-linux). Read docs/increments/001-hammer-connection-and-erg-control.md and docs/features/001-hammer-connection-and-erg-control/design/feature-design.json first. In core: scan/connect/disconnect use cases over the TrainerClient interface, the GATT inventory model (services, characteristics, descriptors, properties, notification/indication capability), the protocol classification rule (FTMS when service 0x1826 and control point 0x2AD9 are available; CYCLEOPS_PROPRIETARY when the expected CycleOps/Saris service and characteristics are available; TELEMETRY_ONLY when power can be read but no supported control path is found; UNSUPPORTED otherwise), and the sanitized inventory JSON export (never include Bluetooth addresses). In androidMain/ble: Android BLE adapter (scanning with name/address/RSSI/advertised services, connection, GATT discovery, subscriptions, serialized reads/writes) and the runtime permission request flow. In app-linux: BlueZ-backed adapter (scan/connect/discover/write) sufficient for the diagnostic flow on the NUC. Wire both UIs: scan list, select device whose advertised name begins with HAMMER, connect, discovered GATT tree, classification badge, and inventory export to a file. Write commonMain unit tests against fake adapters: permission denied then granted, scan timeout with trainer off, trainer found and connected, service discovery failure, notification subscription failure, classification for all four outcomes from fake inventories, and inventory JSON export containing no address strings. Validation: ./gradlew jvmTest and ./gradlew :app:assembleDebug exit 0.",
+      "acceptance_criteria": [
+        "Android: scanning lists nearby devices with name, platform identifier, RSSI, advertised services; selecting the HAMMER-named device connects and renders the full GATT tree with a classification badge",
+        "Linux: the same scan/connect/discover flow works via the BlueZ adapter and renders the GATT tree with classification",
+        "Inventory exports as sanitized JSON (no Bluetooth addresses) to a committed-ready file path",
+        "Classification implements all four rules from the feature design, unit-tested against fake inventories",
+        "Fake-adapter tests cover: permission denied then granted, scan timeout, discovery failure, subscription failure"
+      ],
+      "requirement_ids": [
+        "req-scan",
+        "req-ble-permissions",
+        "req-connect",
+        "req-gatt-inventory",
+        "req-protocol-classification"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-scan-finds-hammer",
+        "ac-permissions",
+        "ac-gatt-inventory",
+        "ac-inventory-fixture"
+      ],
+      "surface_ids": [
+        "surface-android-adapter",
+        "surface-linux-adapter",
+        "surface-android-ui",
+        "surface-linux-ui",
+        "surface-inventory-file"
+      ],
+      "parents": [
+        "wi-kmp-skeleton"
+      ],
+      "validation_commands": [
+        "./gradlew jvmTest --console=plain --no-daemon",
+        "./gradlew :app:assembleDebug --console=plain --no-daemon"
+      ],
+      "runtime_budget_seconds": 5400,
+      "worker": {
+        "profile": "cloud-builder",
+        "skills": [
+          {
+            "name": "hermoso-construction"
+          },
+          {
+            "name": "test-driven-development"
+          },
+          {
+            "name": "systematic-debugging"
+          }
+        ]
+      }
+    },
+    {
+      "id": "wi-protocol-codec",
+      "title": "FTMS protocol codec: opcodes, target-power encoding, response parsing",
+      "prompt": "Implement the pure-Kotlin FTMS protocol layer in the core module (commonMain/protocol/ftms). Read docs/increments/001-hammer-connection-and-erg-control.md (see Test plan: FTMS UUID and opcode definitions, little-endian signed target-power encoding, FTMS response-code parsing for success and every defined failure, Indoor Bike Data parsing for packets with different flag combinations, rejection of malformed and truncated packets, target range validation at 49, 50, 300, and 301 W) and the feature design first. Deliver: FTMS UUID constants (0x1826 service, 0x2AD9 control point, 0x2A36/0x2A37 Indoor Bike Data), control-point operation encoding, target-power value encoding (signed little-endian per the spec) with range validation, FTMS response-code parsing (success plus every defined failure code), and Indoor Bike Data packet parsing handling all flag combinations (power present, speed present, flags). If the later hardware capture reveals a CycleOps proprietary path, add commonMain/protocol/cycleops packet encoding/parsing; until then leave the hook (interface + TODO marker) in place. All codecs must be pure Kotlin, unit-testable without Bluetooth hardware, with malformed/truncated packet rejection tests. No GoldenCheetah/QDomyos-Zwift source may be copied. Validation: ./gradlew jvmTest exits 0 with the new tests passing.",
+      "acceptance_criteria": [
+        "FTMS UUID/opcode constants, control-point operation encoding, and little-endian signed target-power encoding with range validation (tested at 49, 50, 300, 301 W boundaries) exist in core commonMain",
+        "FTMS response-code parsing covers success and every defined failure code, unit-tested",
+        "Indoor Bike Data parsing handles all flag combinations; malformed and truncated packets are rejected in tests",
+        "A hook for a CycleOps proprietary packet path exists; no GPL-covered source is copied"
+      ],
+      "requirement_ids": [
+        "req-control-ack",
+        "req-pure-codec"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-ack-not-callback"
+      ],
+      "surface_ids": [
+        "surface-ftms-protocol"
+      ],
+      "parents": [
+        "wi-kmp-skeleton"
+      ],
+      "validation_commands": [
+        "./gradlew jvmTest --console=plain --no-daemon"
+      ],
+      "runtime_budget_seconds": 3600,
+      "worker": {
+        "profile": "cloud-builder",
+        "skills": [
+          {
+            "name": "hermoso-construction"
+          },
+          {
+            "name": "test-driven-development"
+          },
+          {
+            "name": "systematic-debugging"
+          }
+        ]
+      }
+    },
+    {
+      "id": "wi-hardware-capture",
+      "title": "Hardware GATT capture on the physical Hammer (user-executed)",
+      "prompt": "USER-EXECUTED HARDWARE GATE \u2014 the worker prepares, the user rides. Step 1 (worker, on this machine): build the latest app-linux and app APKs from the feature branch; if the user's Android phone is reachable via adb on this machine, install the APK (adb install); write docs/features/001-hammer-connection-and-erg-control/implementation/capture-runbook.md with exact steps for both platforms (power on Hammer, mount bike, run diagnostic, capture inventory, note classification). Step 2 (user, with the physical trainer): run the diagnostic app on the NUC (Linux) and on the phone against the powered-on Hammer; save the exported sanitized inventory JSON from BOTH platforms into docs/features/001-hammer-connection-and-erg-control/implementation/ (android-inventory.json, linux-inventory.json) plus short log excerpts; record the observed classification. Step 3 (orchestrator, after user reports): review the committed inventories, record the protocol decision (FTMS vs CYCLEOPS_PROPRIETARY vs TELEMETRY_ONLY) in docs/features/001-hammer-connection-and-erg-control/tasks/protocol-decision.md, and complete this work item with the evidence. If the user cannot run the capture yet, BLOCK this item with the missing evidence named.",
+      "acceptance_criteria": [
+        "Sanitized GATT inventory JSON committed from both platforms (android-inventory.json, linux-inventory.json) in docs/features/001-hammer-connection-and-erg-control/implementation/",
+        "The inventories prove whether the firmware exposes FTMS service 0x1826 and control point 0x2AD9",
+        "A protocol decision (FTMS / CYCLEOPS_PROPRIETARY / TELEMETRY_ONLY) is recorded in docs/features/001-hammer-connection-and-erg-control/tasks/protocol-decision.md based on the captured evidence",
+        "No Bluetooth address appears in any committed evidence"
+      ],
+      "requirement_ids": [
+        "req-scan",
+        "req-connect",
+        "req-gatt-inventory",
+        "req-protocol-classification"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-gatt-inventory",
+        "ac-inventory-fixture",
+        "ac-scan-finds-hammer"
+      ],
+      "surface_ids": [
+        "surface-android-ui",
+        "surface-linux-ui",
+        "surface-inventory-file"
+      ],
+      "parents": [
+        "wi-ble-connection",
+        "wi-protocol-codec"
+      ],
+      "validation_commands": [
+        "test -f docs/features/001-hammer-connection-and-erg-control/implementation/android-inventory.json",
+        "test -f docs/features/001-hammer-connection-and-erg-control/implementation/linux-inventory.json",
+        "test -f docs/features/001-hammer-connection-and-erg-control/tasks/protocol-decision.md"
+      ],
+      "runtime_budget_seconds": 1800,
+      "worker": {
+        "profile": "cloud-builder",
+        "skills": [
+          {
+            "name": "hermoso-construction"
+          }
+        ]
+      }
+    },
+    {
+      "id": "wi-telemetry-erg",
+      "title": "Live telemetry display and ERG control (100/150/200 W)",
+      "prompt": "Implement live telemetry and ERG control on top of the captured protocol (read docs/features/001-hammer-connection-and-erg-control/tasks/protocol-decision.md and the committed inventories in docs/features/001-hammer-connection-and-erg-control/implementation/ first, plus docs/increments/001-hammer-connection-and-erg-control.md). In core: the telemetry pipeline (parse Indoor Bike Data notifications into TrainerTelemetry with a stale-data flag when notifications stop), and the setTargetPower use case that serializes the control-point operation over the discovered protocol, validates the protocol acknowledgement (never treat a write callback as success when the protocol defines a separate control response), surfaces protocol failures and timeouts, and rejects commands after failure or disconnection. In both UIs: live watts display with visible stale indicator; guarded 100 W / 150 W / 200 W buttons that are disabled (with an explanation) when the classified protocol is unsupported or telemetry-only; explicit disconnect button; failure/timeout surfacing. If the protocol decision is CYCLEOPS_PROPRIETARY, implement the proprietary control path in commonMain/protocol/cycleops using the captured packet shapes. Add commonMain tests: stale-data detection, target set success/failure/timeout over fakes, commands rejected after disconnect, UI gating for unsupported/telemetry-only protocols, and log output containing protocol state and errors but no Bluetooth address (redaction test). Validation: ./gradlew jvmTest, ./gradlew :app:assembleDebug, ./gradlew :app-linux:build all exit 0.",
+      "acceptance_criteria": [
+        "Live watts update at the trainer's emitted rate and become visibly stale when notifications stop (tested over fakes)",
+        "100 W / 150 W / 200 W controls send acknowledged commands over the discovered protocol; failures and timeouts are surfaced, never reported as success from a write callback alone",
+        "Unsupported or telemetry-only classification disables the power controls with an explanation",
+        "Explicit disconnect works; commands after failure/disconnect are rejected; reconnect without app restart is possible (state machine)",
+        "Diagnostic logs contain protocol state and errors and no Bluetooth address (redaction test passes)"
+      ],
+      "requirement_ids": [
+        "req-telemetry",
+        "req-disconnect",
+        "req-control-ack",
+        "req-erg-control",
+        "req-protocol-classification",
+        "req-privacy"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-power-live",
+        "ac-erg-steps",
+        "ac-unsupported-disables",
+        "ac-trainer-off-telemetry",
+        "ac-trainer-off-control",
+        "ac-reconnect",
+        "ac-logs-no-address"
+      ],
+      "surface_ids": [
+        "surface-android-ui",
+        "surface-linux-ui",
+        "surface-trainer-client"
+      ],
+      "parents": [
+        "wi-hardware-capture"
+      ],
+      "validation_commands": [
+        "./gradlew jvmTest --console=plain --no-daemon",
+        "./gradlew :app:assembleDebug --console=plain --no-daemon",
+        "./gradlew :app-linux:build --console=plain --no-daemon"
+      ],
+      "runtime_budget_seconds": 5400,
+      "worker": {
+        "profile": "cloud-builder",
+        "skills": [
+          {
+            "name": "hermoso-construction"
+          },
+          {
+            "name": "test-driven-development"
+          },
+          {
+            "name": "systematic-debugging"
+          }
+        ]
+      }
+    },
+    {
+      "id": "wi-hardware-acceptance",
+      "title": "Full hardware acceptance run on the physical Hammer (user-executed)",
+      "prompt": "USER-EXECUTED ACCEPTANCE GATE \u2014 the worker prepares, the user rides. Step 1 (worker): rebuild the final app-linux and app APKs from the feature branch; adb install on the phone if reachable; write docs/features/001-hammer-connection-and-erg-control/implementation/acceptance-runbook.md covering: (a) scan finds the powered-on Hammer without a hard-coded address, (b) ten-minute continuous pedaling with live power, (c) 100/150/200 W sequence with perceptible resistance changes, (d) turning the trainer off during telemetry, (e) turning the trainer off during a control operation, (f) reconnect without restarting the app \u2014 on BOTH platforms. Step 2 (user): perform the runs; save sanitized log excerpts (power series for the 10-minute run, control-operation sequences, disconnect/reconnect events) into docs/features/001-hammer-connection-and-erg-control/implementation/ and fill in the Hardware matrix table in docs/increments/001-hammer-connection-and-erg-control.md (OS version, adapter, firmware, classified protocol, results per platform). Step 3 (orchestrator): review evidence, complete or block the item with named gaps. The rubric judge then evaluates the committed evidence against criteria R1-R7.",
+      "acceptance_criteria": [
+        "Acceptance runs completed on the physical Hammer on both platforms: scan without hard-coded address, ten-minute continuous power, 100/150/200 W sequence with acknowledged commands and perceptible resistance changes, trainer-off-during-telemetry, trainer-off-during-control (failed/timed out, never successful), reconnect without app restart",
+        "The Hardware matrix in docs/increments/001-hammer-connection-and-erg-control.md is filled in per platform with OS version, adapter, firmware, and classified protocol",
+        "Sanitized log evidence committed under docs/features/001-hammer-connection-and-erg-control/implementation/ with no Bluetooth addresses"
+      ],
+      "requirement_ids": [
+        "req-scan",
+        "req-ble-permissions",
+        "req-telemetry",
+        "req-erg-control",
+        "req-protocol-classification",
+        "req-disconnect",
+        "req-privacy",
+        "req-hardware-gate",
+        "req-control-ack"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-scan-finds-hammer",
+        "ac-permissions",
+        "ac-power-live",
+        "ac-ten-minute-stability",
+        "ac-erg-steps",
+        "ac-unsupported-disables",
+        "ac-trainer-off-telemetry",
+        "ac-trainer-off-control",
+        "ac-reconnect",
+        "ac-logs-no-address",
+        "ac-hardware-matrix"
+      ],
+      "surface_ids": [
+        "surface-android-ui",
+        "surface-linux-ui"
+      ],
+      "parents": [
+        "wi-telemetry-erg"
+      ],
+      "validation_commands": [
+        "test -f docs/features/001-hammer-connection-and-erg-control/implementation/acceptance-runbook.md"
+      ],
+      "runtime_budget_seconds": 1800,
+      "worker": {
+        "profile": "cloud-builder",
+        "skills": [
+          {
+            "name": "hermoso-construction"
+          }
+        ]
+      }
+    }
+  ]
+}

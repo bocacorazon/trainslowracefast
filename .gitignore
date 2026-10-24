@@ -1,4 +1,7 @@
 .obsidian
+
+# Hermoso control-plane state (clone-local)
+.hermoso/
 build/
 .gradle/
 local.properties
