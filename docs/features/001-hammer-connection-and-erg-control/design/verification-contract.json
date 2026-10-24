@@ -1,0 +1,236 @@
+{
+  "schema_version": "2",
+  "context": {
+    "schema_version": "hermoso-context/v1",
+    "project_id": "project-5cf55b9fce50644cfbe9f362",
+    "feature_id": "001-hammer-connection-and-erg-control",
+    "run_id": "run-ff472179a41546918b913a42",
+    "repository": {
+      "repository": "/home/marcos/Projects/trainslowracefast",
+      "remote_url": "https://github.com/bocacorazon/trainslowracefast.git",
+      "default_branch": "main"
+    }
+  },
+  "producer": {
+    "skill": "hermoso-verification-author",
+    "runtime": "agent"
+  },
+  "revision": 1,
+  "feature_design": {
+    "context": {
+      "schema_version": "hermoso-context/v1",
+      "project_id": "project-5cf55b9fce50644cfbe9f362",
+      "feature_id": "001-hammer-connection-and-erg-control",
+      "run_id": "run-ff472179a41546918b913a42",
+      "repository": {
+        "repository": "/home/marcos/Projects/trainslowracefast",
+        "remote_url": "https://github.com/bocacorazon/trainslowracefast.git",
+        "default_branch": "main"
+      }
+    },
+    "kind": "feature-design",
+    "path": "docs/features/001-hammer-connection-and-erg-control/design/feature-design.json",
+    "revision": 1,
+    "hash": "sha256:808d921239fb2be70808b9b50d5c7f507e982c1a69a9540e504020c2e1fdf12b"
+  },
+  "base_model": {
+    "schema_version": "hermoso-repository-model/v1",
+    "snapshot_id": "model-c35f71ee0500413281683f22ac3089a8",
+    "content_hash": "sha256:c35f71ee0500413281683f22ac3089a885aaef59572a96406f027a0b6390a5d5",
+    "source_revision": "367c0a141b5ae7388e5848fe8905f5a58f55c13b",
+    "vocabulary_version": "v1"
+  },
+  "artifacts": [
+    {
+      "id": "probe-hardware-evidence",
+      "kind": "probe",
+      "path": "probes/collect-hardware-evidence.sh",
+      "content_hash": "sha256:637e9922b0ffaf6bd105a84573f3c0f8cf324aa48746b29fcc9cdd5b7d164a6f"
+    }
+  ],
+  "judgments": [
+    {
+      "id": "j-jvm-tests",
+      "title": "Shared codec, protocol, and state-machine tests pass on JVM",
+      "modality": "deterministic",
+      "requirement_ids": [
+        "req-kmp-skeleton",
+        "req-ble-permissions",
+        "req-scan",
+        "req-connect",
+        "req-gatt-inventory",
+        "req-protocol-classification",
+        "req-telemetry",
+        "req-erg-control",
+        "req-control-ack",
+        "req-disconnect",
+        "req-privacy",
+        "req-pure-codec"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-permissions",
+        "ac-scan-finds-hammer",
+        "ac-gatt-inventory",
+        "ac-inventory-fixture",
+        "ac-ack-not-callback",
+        "ac-unsupported-disables",
+        "ac-trainer-off-telemetry",
+        "ac-trainer-off-control",
+        "ac-reconnect",
+        "ac-logs-no-address",
+        "ac-tests-compile"
+      ],
+      "surface_ids": [
+        "surface-trainer-client",
+        "surface-ftms-protocol",
+        "surface-android-adapter",
+        "surface-linux-adapter",
+        "surface-inventory-file"
+      ],
+      "execution": {
+        "command": [
+          "./gradlew",
+          "jvmTest",
+          "--console=plain",
+          "--no-daemon"
+        ],
+        "timeout_seconds": 1800
+      },
+      "oracle": {
+        "type": "exit_code",
+        "expected": "0"
+      },
+      "required_evidence": [
+        "Gradle jvmTest passes: FTMS UUID/opcode definitions, little-endian signed target-power encoding (incl. rejection at 49, 50, 300, 301 W), FTMS response-code parsing for success and every defined failure, Indoor Bike Data parsing across flag combinations, protocol classification for all four labels from fake GATT inventories, inventory JSON export round-trip, state-machine transitions for connect/discovery/control-timeout/disconnect, no-success-from-write-callback-alone, permission denied-then-granted, trainer-off-during-telemetry and trainer-off-during-control, and log redaction leaving no Bluetooth address"
+      ]
+    },
+    {
+      "id": "j-android-build",
+      "title": "Android launcher assembles",
+      "modality": "deterministic",
+      "requirement_ids": [
+        "req-kmp-skeleton"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-tests-compile"
+      ],
+      "surface_ids": [
+        "surface-android-ui",
+        "surface-android-adapter"
+      ],
+      "execution": {
+        "command": [
+          "./gradlew",
+          ":app:assembleDebug",
+          "--console=plain",
+          "--no-daemon"
+        ],
+        "timeout_seconds": 1800
+      },
+      "oracle": {
+        "type": "exit_code",
+        "expected": "0"
+      },
+      "required_evidence": [
+        "app module (Android launcher with the diagnostic screen) compiles and produces a debug APK"
+      ]
+    },
+    {
+      "id": "j-linux-build",
+      "title": "Linux launcher builds",
+      "modality": "deterministic",
+      "requirement_ids": [
+        "req-kmp-skeleton"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-tests-compile"
+      ],
+      "surface_ids": [
+        "surface-linux-ui",
+        "surface-linux-adapter"
+      ],
+      "execution": {
+        "command": [
+          "./gradlew",
+          ":app-linux:build",
+          "--console=plain",
+          "--no-daemon"
+        ],
+        "timeout_seconds": 1800
+      },
+      "oracle": {
+        "type": "exit_code",
+        "expected": "0"
+      },
+      "required_evidence": [
+        "app-linux module (Linux launcher backed by the BlueZ adapter) compiles and its tests run"
+      ]
+    },
+    {
+      "id": "j-hardware-gate",
+      "title": "Hardware acceptance on the physical 9810F (both platforms)",
+      "modality": "rubric",
+      "requirement_ids": [
+        "req-scan",
+        "req-connect",
+        "req-gatt-inventory",
+        "req-protocol-classification",
+        "req-telemetry",
+        "req-erg-control",
+        "req-control-ack",
+        "req-disconnect",
+        "req-privacy",
+        "req-hardware-gate"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-scan-finds-hammer",
+        "ac-permissions",
+        "ac-gatt-inventory",
+        "ac-inventory-fixture",
+        "ac-power-live",
+        "ac-ten-minute-stability",
+        "ac-erg-steps",
+        "ac-unsupported-disables",
+        "ac-trainer-off-telemetry",
+        "ac-trainer-off-control",
+        "ac-reconnect",
+        "ac-logs-no-address",
+        "ac-hardware-matrix"
+      ],
+      "surface_ids": [
+        "surface-android-ui",
+        "surface-linux-ui",
+        "surface-inventory-file"
+      ],
+      "execution": {
+        "command": [
+          "bash",
+          "probes/collect-hardware-evidence.sh"
+        ],
+        "timeout_seconds": 120,
+        "working_directory": "docs/features/001-hammer-connection-and-erg-control/design"
+      },
+      "oracle": {
+        "type": "rubric"
+      },
+      "rubric": {
+        "judge": "rubric",
+        "criteria": [
+          "R1 Scan: on both platforms, the powered-on Hammer is found by advertised name without a hard-coded address, with name, platform identifier, RSSI, and advertised services displayed; Android Bluetooth permissions were requested (denied-then-granted path exercised).",
+          "R2 Inventory and classification: the committed sanitized GATT inventory fixture proves whether this firmware exposes FTMS service 0x1826 and control point 0x2AD9; the assigned classification (FTMS, CYCLEOPS_PROPRIETARY, TELEMETRY_ONLY, or UNSUPPORTED) follows the rules in the feature design; an unsupported or telemetry-only result disables the power controls with an explanation.",
+          "R3 Live telemetry: while pedaling, power updated continuously for at least ten minutes on each platform without parsing errors or dropped connections, at the rate emitted by the trainer, and became visibly stale when notifications stopped.",
+          "R4 ERG control: the 100 W, 150 W, and 200 W targets were applied in order on the real trainer; each was acknowledged by the protocol and produced a perceptible resistance change; no target was reported successful from a write callback alone when the protocol defines a separate control response.",
+          "R5 Failure behavior: turning the trainer off during telemetry moved the app to a disconnected state with all controls disabled; turning it off during a control operation reported the operation as failed or timed out, never successful; after each failure the trainer could be scanned, connected, and controlled again without restarting the app.",
+          "R6 Privacy: diagnostic logs contain protocol state and errors but contain no Bluetooth address; the privacy scan in the evidence output reports clean and the committed inventory fixture is sanitized.",
+          "R7 Hardware matrix: the hardware matrix in the increment doc is filled in per platform with OS version, adapter, firmware, and classified protocol; results support the increment's go/no-go gate."
+        ]
+      },
+      "required_evidence": [
+        "Output of probes/collect-hardware-evidence.sh: hardware matrix from the increment doc, list of committed evidence files, GATT inventory fixture with 0x1826/0x2AD9 presence, and a clean privacy scan"
+      ]
+    }
+  ],
+  "aggregation": {
+    "strategy": "all_required"
+  }
+}

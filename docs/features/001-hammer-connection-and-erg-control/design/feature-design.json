@@ -1,0 +1,335 @@
+{
+  "schema_version": "2",
+  "context": {
+    "schema_version": "hermoso-context/v1",
+    "project_id": "project-5cf55b9fce50644cfbe9f362",
+    "feature_id": "001-hammer-connection-and-erg-control",
+    "run_id": "run-ff472179a41546918b913a42",
+    "repository": {
+      "repository": "/home/marcos/Projects/trainslowracefast",
+      "remote_url": "https://github.com/bocacorazon/trainslowracefast.git",
+      "default_branch": "main"
+    }
+  },
+  "producer": {
+    "skill": "hermoso-design",
+    "runtime": "agent"
+  },
+  "revision": 1,
+  "feature": {
+    "id": "001-hammer-connection-and-erg-control",
+    "title": "Hammer BLE connection and ERG control (increment 001)",
+    "objective": "Prove that a Kotlin Multiplatform application can connect to the first-generation CycleOps Hammer (model 9810F) over BLE, receive live power telemetry, and safely set its ERG target on Android and Linux, classifying the firmware's actual BLE protocol from captured GATT evidence. This increment is the hardware and protocol gate for the trainer-app project; the full spec is docs/increments/001-hammer-connection-and-erg-control.md.",
+    "target_repository": {
+      "repository": "/home/marcos/Projects/trainslowracefast",
+      "remote_url": "https://github.com/bocacorazon/trainslowracefast.git",
+      "default_branch": "main"
+    }
+  },
+  "base_model": {
+    "schema_version": "hermoso-repository-model/v1",
+    "snapshot_id": "model-c35f71ee0500413281683f22ac3089a8",
+    "content_hash": "sha256:c35f71ee0500413281683f22ac3089a885aaef59572a96406f027a0b6390a5d5",
+    "source_revision": "367c0a141b5ae7388e5848fe8905f5a58f55c13b",
+    "vocabulary_version": "v1"
+  },
+  "requirements": [
+    {
+      "id": "req-kmp-skeleton",
+      "title": "Kotlin Multiplatform skeleton",
+      "statement": "A minimal Kotlin Multiplatform project with a shared commonMain and Android and Linux platform launchers exists; both platform applications compile and launch on physical targets.",
+      "kind": "functional",
+      "priority": "must"
+    },
+    {
+      "id": "req-ble-permissions",
+      "title": "Android Bluetooth permissions",
+      "statement": "The Android app requests the Bluetooth permissions required for scanning and connection, and the permission-denied-then-granted path works.",
+      "kind": "functional",
+      "priority": "must"
+    },
+    {
+      "id": "req-scan",
+      "title": "BLE scan and device selection",
+      "statement": "The app scans nearby BLE devices and displays name, platform identifier, RSSI, and advertised services, and finds the powered-on Hammer without relying on a hard-coded device address.",
+      "kind": "functional",
+      "priority": "must"
+    },
+    {
+      "id": "req-connect",
+      "title": "Hammer connection",
+      "statement": "The app selects the device whose advertised name begins with HAMMER and establishes a GATT connection to it.",
+      "kind": "functional",
+      "priority": "must"
+    },
+    {
+      "id": "req-gatt-inventory",
+      "title": "GATT discovery and inventory",
+      "statement": "After connecting, the app discovers all GATT services, characteristics, and descriptors, displays the complete inventory, and exports it as sanitized JSON committed as a test fixture.",
+      "kind": "functional",
+      "priority": "must"
+    },
+    {
+      "id": "req-protocol-classification",
+      "title": "Protocol classification",
+      "statement": "The connection is classified as FTMS when service 0x1826 and control point 0x2AD9 are available, CYCLEOPS_PROPRIETARY when the expected CycleOps/Saris service and characteristics are available, TELEMETRY_ONLY when power can be read but no supported control path is found, and UNSUPPORTED when neither telemetry nor a control path is found.",
+      "kind": "functional",
+      "priority": "must"
+    },
+    {
+      "id": "req-telemetry",
+      "title": "Live power telemetry",
+      "statement": "While pedaling, current power updates at the rate the trainer emits and becomes visibly stale when notifications stop; power remains stable for at least ten minutes on each platform without parsing errors or a dropped connection.",
+      "kind": "functional",
+      "priority": "must"
+    },
+    {
+      "id": "req-erg-control",
+      "title": "ERG target power control",
+      "statement": "The app sets the trainer's ERG target to 100 W, 150 W, and 200 W over the discovered control path; each target is acknowledged and physically applied in order.",
+      "kind": "functional",
+      "priority": "must"
+    },
+    {
+      "id": "req-control-ack",
+      "title": "Acknowledged control, no false success",
+      "statement": "Control operations are validated against protocol acknowledgements; the app never reports success from a write callback alone when the protocol defines a separate control response, and surfaces protocol failures and timeouts.",
+      "kind": "functional",
+      "priority": "must"
+    },
+    {
+      "id": "req-disconnect",
+      "title": "Disconnect and failure behavior",
+      "statement": "The app supports explicit disconnect, handles trainer power-off and out-of-range disconnects, rejects commands sent after failure or disconnection, and a fresh connection can be established after each failure without restarting the app.",
+      "kind": "functional",
+      "priority": "must"
+    },
+    {
+      "id": "req-privacy",
+      "title": "No persisted Bluetooth addresses",
+      "statement": "Diagnostic logs contain protocol state and errors but never persist Bluetooth addresses; the committed GATT inventory is sanitized of addresses.",
+      "kind": "security",
+      "priority": "must"
+    },
+    {
+      "id": "req-pure-codec",
+      "title": "Pure-Kotlin testable protocol codecs",
+      "statement": "FTMS UUIDs, opcodes, packet encoding, and response parsing are pure Kotlin and unit-testable without Bluetooth hardware; GoldenCheetah and QDomyos-Zwift source are not copied or translated unless a GPL license decision is explicitly recorded for the project.",
+      "kind": "structural",
+      "priority": "must"
+    },
+    {
+      "id": "req-hardware-gate",
+      "title": "Hardware-in-the-loop acceptance",
+      "statement": "Hardware acceptance on the physical 9810F is mandatory on each platform: Android BLE, BlueZ, firmware behavior, and resistance application cannot be validated by mocks; the hardware matrix records OS version, adapter, firmware, and classified protocol.",
+      "kind": "non_functional",
+      "priority": "must"
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "ac-scan-finds-hammer",
+      "statement": "On Android and Linux, scanning finds the powered-on Hammer without relying on a hard-coded device address.",
+      "requirement_ids": ["req-scan"]
+    },
+    {
+      "id": "ac-permissions",
+      "statement": "The Android app requests the required Bluetooth permissions and the denied-then-granted path is exercised.",
+      "requirement_ids": ["req-ble-permissions"]
+    },
+    {
+      "id": "ac-gatt-inventory",
+      "statement": "The app displays the trainer's complete discovered GATT inventory and classifies its protocol from services and characteristics.",
+      "requirement_ids": ["req-connect", "req-gatt-inventory", "req-protocol-classification"]
+    },
+    {
+      "id": "ac-inventory-fixture",
+      "statement": "The captured inventory proves whether this firmware exposes FTMS service 0x1826; the result is committed as a sanitized test fixture.",
+      "requirement_ids": ["req-gatt-inventory"]
+    },
+    {
+      "id": "ac-power-live",
+      "statement": "While pedaling, current power updates at the rate emitted by the trainer and becomes visibly stale when notifications stop.",
+      "requirement_ids": ["req-telemetry"]
+    },
+    {
+      "id": "ac-ten-minute-stability",
+      "statement": "Power updates continuously for at least ten minutes on both platforms without parsing errors or a dropped connection.",
+      "requirement_ids": ["req-telemetry"]
+    },
+    {
+      "id": "ac-erg-steps",
+      "statement": "Tapping 100 W, 150 W, and 200 W in sequence produces an acknowledged command and a perceptible corresponding resistance change.",
+      "requirement_ids": ["req-erg-control"]
+    },
+    {
+      "id": "ac-ack-not-callback",
+      "statement": "The app never reports success from a write callback alone when the protocol defines a separate control response.",
+      "requirement_ids": ["req-control-ack"]
+    },
+    {
+      "id": "ac-unsupported-disables",
+      "statement": "An unsupported or telemetry-only protocol disables the power controls and explains why.",
+      "requirement_ids": ["req-protocol-classification", "req-erg-control"]
+    },
+    {
+      "id": "ac-trainer-off-telemetry",
+      "statement": "Turning off the trainer during telemetry moves the app to a disconnected state and disables all controls.",
+      "requirement_ids": ["req-disconnect", "req-telemetry"]
+    },
+    {
+      "id": "ac-trainer-off-control",
+      "statement": "Turning off the trainer during a control operation reports the operation as failed or timed out, never successful.",
+      "requirement_ids": ["req-disconnect", "req-control-ack"]
+    },
+    {
+      "id": "ac-reconnect",
+      "statement": "After an explicit or unexpected disconnect, the trainer can be scanned, connected, and controlled again without restarting the app.",
+      "requirement_ids": ["req-disconnect"]
+    },
+    {
+      "id": "ac-logs-no-address",
+      "statement": "Diagnostic logs contain protocol state and errors but do not persist the Bluetooth address.",
+      "requirement_ids": ["req-privacy"]
+    },
+    {
+      "id": "ac-tests-compile",
+      "statement": "Shared codec and state-machine tests pass, and both platform applications compile.",
+      "requirement_ids": ["req-kmp-skeleton", "req-pure-codec"]
+    },
+    {
+      "id": "ac-hardware-matrix",
+      "statement": "The hardware matrix in the increment doc is filled in per platform with OS version, adapter, firmware, and classified protocol.",
+      "requirement_ids": ["req-hardware-gate"]
+    }
+  ],
+  "business_vocabulary": [
+    {
+      "id": "term-hammer",
+      "term": "Hammer",
+      "definition": "The user's first-generation CycleOps indoor bike trainer, model 9810F, January 2017, with BLE and ANT+ FE-C radios; it has no cadence sensor.",
+      "aliases": ["CycleOps Hammer", "trainer", "9810F"]
+    },
+    {
+      "id": "term-erg-target",
+      "term": "ERG target",
+      "definition": "The power level in watts the app commands the trainer to hold; the trainer's resistance mechanism works to maintain it.",
+      "aliases": ["target power", "erg mode"]
+    },
+    {
+      "id": "term-ftms",
+      "term": "FTMS",
+      "definition": "Bluetooth SIG Fitness Machine Service (0x1826), the standard BLE protocol for bike trainers, with control point 0x2AD9.",
+      "aliases": ["Fitness Machine Service", "0x1826"]
+    },
+    {
+      "id": "term-gatt-inventory",
+      "term": "GATT inventory",
+      "definition": "The complete list of services, characteristics, descriptors, and properties discovered on the trainer after connecting.",
+      "aliases": ["service inventory", "discovered services"]
+    },
+    {
+      "id": "term-protocol-classification",
+      "term": "protocol classification",
+      "definition": "The label assigned to a connected trainer: FTMS, CYCLEOPS_PROPRIETARY, TELEMETRY_ONLY, or UNSUPPORTED, derived from discovered services and characteristics.",
+      "aliases": ["classification"]
+    },
+    {
+      "id": "term-telemetry",
+      "term": "telemetry",
+      "definition": "Live power and speed readings emitted by the trainer while pedaling; cadence is not available on this trainer.",
+      "aliases": ["power data"]
+    }
+  ],
+  "interaction_surfaces": [
+    {
+      "id": "surface-android-ui",
+      "title": "Android diagnostic screen",
+      "kind": "ui",
+      "source": "planned",
+      "description": "Single diagnostic screen: scan list with name/RSSI/advertised services, GATT tree view, live power display with stale-data indicator, and 100/150/200 W controls gated by protocol classification."
+    },
+    {
+      "id": "surface-linux-ui",
+      "title": "Linux diagnostic screen",
+      "kind": "ui",
+      "source": "planned",
+      "description": "The same diagnostic screen as Android, backed by the shared domain client on the BlueZ-backed Linux adapter."
+    },
+    {
+      "id": "surface-trainer-client",
+      "title": "TrainerClient shared domain API",
+      "kind": "library",
+      "source": "planned",
+      "description": "commonMain interface exposing state and telemetry StateFlows plus scan, connect, setTargetPower, and disconnect operations, keeping BLE-library types out of commonMain."
+    },
+    {
+      "id": "surface-ftms-protocol",
+      "title": "FTMS protocol codec",
+      "kind": "library",
+      "source": "planned",
+      "description": "Pure-Kotlin FTMS UUIDs, opcodes, control-point packet encoding, and response-code parsing, unit-testable without hardware."
+    },
+    {
+      "id": "surface-android-adapter",
+      "title": "Android BLE adapter",
+      "kind": "api",
+      "source": "planned",
+      "description": "androidMain adapter owning scanning, GATT lifecycle, subscriptions, and serialized reads/writes behind the shared client interface."
+    },
+    {
+      "id": "surface-linux-adapter",
+      "title": "BlueZ Linux adapter",
+      "kind": "api",
+      "source": "planned",
+      "description": "Kotlin JVM or Kotlin/Native adapter over BlueZ providing the same scanning, connection, discovery, and write operations on the Linux machine."
+    },
+    {
+      "id": "surface-inventory-file",
+      "title": "Sanitized GATT inventory fixture",
+      "kind": "file",
+      "source": "planned",
+      "description": "JSON export of the discovered GATT services, characteristics, descriptors, and protocol classification, sanitized of addresses, committed as a test fixture."
+    }
+  ],
+  "constraints": [
+    "Kotlin only: shared code in Kotlin Multiplatform commonMain with Kotlin Android and Kotlin/JVM or Kotlin/Native Linux adapters; no other languages in the project.",
+    "The Hammer has no cadence sensor; cadence is not a telemetry requirement for this increment.",
+    "No hard-coded device addresses; discovery must work by advertised name prefix HAMMER.",
+    "Bluetooth addresses must never be persisted in logs or committed fixtures.",
+    "GoldenCheetah and QDomyos-Zwift source may be consulted to understand behavior but must not be copied or translated unless a GPL license decision is explicitly recorded for the project.",
+    "ANT+ FE-C is a known fallback but is out of scope for this increment; the BLE control path must be proven first.",
+    "Hardware-in-the-loop acceptance on the physical 9810F is mandatory; mocks cannot substitute for Android BLE, BlueZ, firmware behavior, or resistance application."
+  ],
+  "non_goals": [
+    "Workout engine, workout display, and pause/resume of scheduled workouts (later increments).",
+    "Session recording and upload to PerfPRO Studio, TrainingPeaks, or Strava via Tapiriik (later increments).",
+    "ANT+ FE-C control and legacy CompuTrainer serial support.",
+    "Advanced training metrics (TSS, power curves, heart-rate zones).",
+    "iOS support and multi-trainer support."
+  ],
+  "decisions": [
+    {
+      "decision": "Use a single Kotlin Multiplatform codebase with one shared core and Android and Linux platform adapters.",
+      "rationale": "User's explicit direction: build the core in Kotlin with two Kotlin front-ends instead of porting the C++ GoldenCheetah base."
+    },
+    {
+      "decision": "Treat this increment as the BLE protocol gate: determine the firmware's actual BLE protocol from captured GATT evidence before assuming FTMS.",
+      "rationale": "The trainer advertises Bluetooth Smart but its control path is unverified; PerfPRO Studio (Windows-only) is the current erg driver and its behavior is the baseline to understand."
+    },
+    {
+      "decision": "Defer ANT+ FE-C control to a later increment.",
+      "rationale": "ANT+ is a known-working fallback (the trainer is currently driven via ANT+ from PerfPRO Studio) but BLE is the required path for a phone-only control experience; proving BLE first bounds the effort."
+    },
+    {
+      "decision": "Do not copy GoldenCheetah or QDomyos-Zwift source during the discovery step.",
+      "rationale": "Avoids pulling GPL-covered C++ code into a new Kotlin project before the license decision is made; both remain available as behavioral references."
+    },
+    {
+      "decision": "The Linux platform targets the user's NUC with a BlueZ BLE adapter; Android targets the user's physical phone.",
+      "rationale": "The NUC is the intended Linux training machine; the phone is the only Android device available."
+    }
+  ],
+  "unresolved_questions": [],
+  "complexity": "standard"
+}
