@@ -48,7 +48,16 @@ fun DevicesScreen(
     var candidates by remember { mutableStateOf<List<TrainerCandidate>>(emptyList()) }
     var remembered by remember { mutableStateOf<TrainerIdentity?>(settingsStore.load().trainer) }
 
-    suspend fun scan(): List<TrainerCandidate> = trainerClient.scan().toList()
+    // One row per device; anonymous MAC-named junk filtered out (the BLE
+    // neighbourhood is full of it); real signal readings first, unknown (0)
+    // last. Found live in the smoke ride: unknown-rssi junk (0) outranked
+    // the trainer's genuine -69 dBm.
+    val macLike = Regex("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
+    suspend fun scan(): List<TrainerCandidate> =
+        trainerClient.scan().toList()
+            .distinctBy { it.platformId }
+            .filterNot { macLike.matches(it.name.trim()) }
+            .sortedByDescending { if (it.rssi == 0) Int.MIN_VALUE else it.rssi }
 
     LaunchedEffect(Unit) { candidates = scan() }
 
@@ -75,20 +84,25 @@ fun DevicesScreen(
         OutlinedButton(onClick = { scope.launch { candidates = scan() } }) { Text("Rescan") }
         Spacer(Modifier.height(12.dp))
 
-        candidates.forEach { candidate ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("${candidate.name}   rssi ${candidate.rssi}", fontSize = 16.sp)
-                Button(onClick = {
-                    scope.launch {
-                        erg.connect(candidate)
-                        remembered = settingsStore.load().trainer
-                        onConnected()
-                    }
-                }) { Text("Connect") }
+        androidx.compose.foundation.lazy.LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+        ) {
+            items(candidates.size) { index ->
+                val candidate = candidates[index]
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("${candidate.name}   rssi ${candidate.rssi}", fontSize = 16.sp)
+                    Button(onClick = {
+                        scope.launch {
+                            erg.connect(candidate)
+                            remembered = settingsStore.load().trainer
+                            onConnected()
+                        }
+                    }) { Text("Connect") }
+                }
             }
         }
 

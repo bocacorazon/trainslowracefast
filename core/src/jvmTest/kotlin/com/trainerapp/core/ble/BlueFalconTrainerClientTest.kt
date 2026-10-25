@@ -182,41 +182,18 @@ class BlueFalconTrainerClientTest {
         withClient(this, fake) { client ->
             connectHammer(this, fake, client)
 
-            // Flags=0x01 (power present), instantaneous power = 250 W.
-            fake.valueFlow(POWER_CHAR).value = byteArrayOf(0x01, 250.toByte(), 0)
+            // Real CPM format (verified live in the smoke ride): flags
+            // uint16 LE (0x1834), power sint16 LE = 250 W = 0x00FA.
+            fake.valueFlow(POWER_CHAR).value = byteArrayOf(0x34, 0x18, 0xfa.toByte(), 0x00)
 
             assertEquals(250, client.telemetry.value.watts)
             assertFalse(client.telemetry.value.stale)
         }
     }
 
-    @Test
-    fun telemetry_speed_notified_from_speed_characteristic() = runTest {
-        val fake = FakeBleBackend()
-        withClient(this, fake) { client ->
-            connectHammer(this, fake, client)
-
-            // 0x2A65: uint16 LE in 1/100 m/s units. 0x0442 = 1090 -> 39.24 kph.
-            fake.valueFlow(SPEED_CHAR).value = byteArrayOf(0x42, 0x04)
-
-            assertEquals(39.24, client.telemetry.value.speedKph!!, 1e-9)
-        }
-    }
-
-    @Test
-    fun telemetry_speed_polled_when_notify_unsupported() = runTest {
-        val fake = FakeBleBackend()
-        fake.unsupportedNotify += SPEED_CHAR
-        fake.readValues[SPEED_CHAR] = byteArrayOf(0x42, 0x04)
-        withClient(this, fake) { client ->
-            connectHammer(this, fake, client)
-
-            assertNull(client.telemetry.value.speedKph)
-            advanceTimeBy(1100)
-            assertEquals(39.24, client.telemetry.value.speedKph!!, 1e-9)
-            assertTrue(SPEED_CHAR in fake.readLog, "speed characteristic was polled")
-        }
-    }
+    // Speed tests intentionally removed: 0x2A65 on the Hammer H1 is Cycling
+    // Power Vector, not a speed source. Speed returns when a slice wires a
+    // real source (crank/wheel revolution data or a speed sensor).
 
     @Test
     fun telemetry_goes_stale_after_3s_without_data() = runTest {
@@ -225,7 +202,7 @@ class BlueFalconTrainerClientTest {
         withClient(this, fake, timeMillis = { now }) { client ->
             connectHammer(this, fake, client)
 
-            fake.valueFlow(POWER_CHAR).value = byteArrayOf(0x01, 250.toByte(), 0)
+            fake.valueFlow(POWER_CHAR).value = byteArrayOf(0x34, 0x18, 0xfa.toByte(), 0x00)
             assertFalse(client.telemetry.value.stale)
 
             now = 5_000L
@@ -236,18 +213,20 @@ class BlueFalconTrainerClientTest {
     }
 
     @Test
-    fun set_target_power_writes_codec_frame_to_vendor_control() = runTest {
+    fun set_target_power_writes_codec_frame_to_wahoo_legacy_char() = runTest {
         val fake = FakeBleBackend()
         withClient(this, fake) { client ->
             connectHammer(this, fake, client)
-            fake.autoIndicateOnWrite += VENDOR_CONTROL
+            // The H1's real ERG path is the Wahoo-legacy a026e005 char
+            // (verified live); it is tried first.
+            fake.autoIndicateOnWrite += CPS_CONTROL
 
             val result = client.setTargetPower(120)
             assertEquals(ControlResult.Acknowledged, result)
 
             val write = fake.writeLog.single()
             assertEquals(DEVICE, write.deviceKey)
-            assertEquals(VENDOR_CONTROL, write.charKey)
+            assertEquals(CPS_CONTROL, write.charKey)
             assertContentEquals(
                 TestCodec.encodeTargetPower(120, TrainerProtocol.CycleOpsProprietary),
                 write.data,
@@ -256,16 +235,16 @@ class BlueFalconTrainerClientTest {
     }
 
     @Test
-    fun control_falls_back_to_power_service_char_when_vendor_indicate_unsupported() = runTest {
+    fun control_falls_back_to_cycleops_vendor_char_when_wahoo_indicate_unsupported() = runTest {
         val fake = FakeBleBackend()
-        fake.unsupportedIndicate += VENDOR_CONTROL
+        fake.unsupportedIndicate += CPS_CONTROL
         withClient(this, fake) { client ->
             connectHammer(this, fake, client)
-            fake.autoIndicateOnWrite += CPS_CONTROL
+            fake.autoIndicateOnWrite += VENDOR_CONTROL
 
             val result = client.setTargetPower(200)
             assertEquals(ControlResult.Acknowledged, result)
-            assertEquals(CPS_CONTROL, fake.writeLog.single().charKey)
+            assertEquals(VENDOR_CONTROL, fake.writeLog.single().charKey)
         }
     }
 
@@ -379,7 +358,7 @@ class BlueFalconTrainerClientTest {
         val fake = FakeBleBackend()
         withClient(this, fake) { client ->
             connectHammer(this, fake, client)
-            fake.autoIndicateOnWrite += VENDOR_CONTROL
+            fake.autoIndicateOnWrite += CPS_CONTROL
 
             val result = client.requestMinLoad()
             assertEquals(ControlResult.Acknowledged, result)
@@ -395,7 +374,7 @@ class BlueFalconTrainerClientTest {
         val fake = FakeBleBackend()
         withClient(this, fake) { client ->
             connectHammer(this, fake, client)
-            fake.valueFlow(POWER_CHAR).value = byteArrayOf(0x01, 250.toByte(), 0)
+            fake.valueFlow(POWER_CHAR).value = byteArrayOf(0x34, 0x18, 0xfa.toByte(), 0x00)
 
             client.disconnect()
 
@@ -404,7 +383,7 @@ class BlueFalconTrainerClientTest {
             assertEquals(DisconnectReason.USER_REQUESTED, st.reason)
             assertEquals(listOf(DEVICE), fake.disconnectCalls)
             // Notification subscriptions are cancelled on disconnect.
-            fake.valueFlow(POWER_CHAR).value = byteArrayOf(0x01, 500.toByte(), 0)
+            fake.valueFlow(POWER_CHAR).value = byteArrayOf(0x34, 0x18, 0xf4.toByte(), 0x01)
             assertEquals(250, client.telemetry.value.watts)
         }
     }

@@ -7,6 +7,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import com.trainerapp.core.FakeTrainerClient
+import com.trainerapp.core.ble.BlueFalconBleBackend
+import com.trainerapp.core.ble.BlueFalconTrainerClient
 import com.trainerapp.core.domain.TrainerCandidate
 import com.trainerapp.core.domain.TrainerClient
 import com.trainerapp.core.erg.ErgController
@@ -26,7 +28,8 @@ import kotlinx.coroutines.launch
  *
  * (core/src/jvmMain .../ble/, with the pluggable BestEffortSarisCodec).
  */
-fun createTrainerClient(): TrainerClient = FakeTrainerClient()
+fun createTrainerClient(): TrainerClient =
+    BlueFalconTrainerClient(BlueFalconBleBackend())
 
 /** Reconstructs a connectable candidate from the persisted trainer identity. */
 private fun TrainerIdentity.toCandidate(): TrainerCandidate =

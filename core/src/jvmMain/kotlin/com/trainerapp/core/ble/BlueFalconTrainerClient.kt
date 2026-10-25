@@ -19,6 +19,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
@@ -46,6 +47,7 @@ class BlueFalconTrainerClient(
     dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val ackTimeoutMillis: Long = 1_000,
     private val staleAfterMillis: Long = 3_000,
+    private val scanWindowMillis: Long = 12_000,
     private val telemetryPollIntervalMillis: Long = 1_000,
 ) : TrainerClient {
 
@@ -81,18 +83,31 @@ class BlueFalconTrainerClient(
         _state.value = TrainerState.Scanning
         backend.startScan()
         try {
-            backend.scanResults.collect { results ->
-                for (r in results) {
-                    val pid = platformIdFor(r.deviceKey)
-                    platformIdToDeviceKey[pid] = r.deviceKey
-                    emit(
-                        TrainerCandidate(
-                            name = r.name ?: "Unknown",
-                            platformId = pid,
-                            rssi = r.rssi ?: 0,
-                            advertisedServices = r.advertisedServices,
-                        )
-                    )
+            // A scan is a BOUNDED discovery pass: collect the backend's
+            // scan-results StateFlow for a fixed window, then complete.
+            // (A StateFlow never completes on its own — collecting it
+            // without a window made scan() never return, so UI collectors
+            // waiting for completion saw no candidates at all. Found live
+            // in the smoke ride.)
+            // The backend re-emits its full accumulated list on every update;
+            // emit each discovered device only ONCE per scan pass.
+            val seen = mutableSetOf<String>()
+            withTimeoutOrNull(scanWindowMillis) {
+                backend.scanResults.collect { results ->
+                    for (r in results) {
+                        val pid = platformIdFor(r.deviceKey)
+                        platformIdToDeviceKey[pid] = r.deviceKey
+                        if (seen.add(pid)) {
+                            emit(
+                                TrainerCandidate(
+                                    name = r.name ?: "Unknown",
+                                    platformId = pid,
+                                    rssi = r.rssi ?: 0,
+                                    advertisedServices = r.advertisedServices,
+                                )
+                            )
+                        }
+                    }
                 }
             }
         } finally {
@@ -142,19 +157,13 @@ class BlueFalconTrainerClient(
                 }
             }
 
-            // Speed: 0x2A65 — prefer notify, fall back to polling (handled in the session).
-            val speed = findChar(services, ProtocolClassifier.SPEED)
-            if (speed != null) {
-                try {
-                    backend.setNotify(key, speed.uuid, true)
-                    speedChar = speed.uuid
-                    speedCharNotified = true
-                    verified.getOrPut(speed.uuid) { mutableSetOf() } += "notify"
-                } catch (e: Exception) {
-                    speedChar = speed.uuid
-                    speedCharNotified = false
-                }
-            }
+            // NOTE: 0x2A65 on the Hammer H1 is Cycling Power Vector, NOT a
+            // speed characteristic — the earlier "speed" read misparsed it
+            // (frozen 32.8 km/h in the smoke ride). Speed is dropped until
+            // a real source (wheel/crank revolution data or a speed sensor)
+            // exists in a later slice.
+            speedChar = null
+            speedCharNotified = false
 
             // Control: FTMS control point, or the CycleOps vendor chars (priority order).
             val inventory0 = toGattInventory(services)
@@ -162,8 +171,12 @@ class BlueFalconTrainerClient(
             val controlCandidates = when (candidateProtocol) {
                 TrainerProtocol.Ftms -> listOf(ProtocolClassifier.FTMS_CONTROL_POINT)
                 is TrainerProtocol.CycleOpsProprietary -> listOf(
-                    ProtocolClassifier.CYCLEOPS_VENDOR_CONTROL,
+                    // a026e005 (the Wahoo-legacy control point living inside
+                    // the Cycling Power Service) is the H1's real ERG path,
+                    // verified live; the true CycleOps vendor char is only a
+                    // fallback.
                     ProtocolClassifier.CYCLEOPS_POWER_SERVICE_CONTROL,
+                    ProtocolClassifier.CYCLEOPS_VENDOR_CONTROL,
                 )
 
                 else -> emptyList()
@@ -193,6 +206,20 @@ class BlueFalconTrainerClient(
             val finalInventory = mergeVerifiedProperties(inventory0, verified)
             val finalProtocol = ProtocolClassifier.classify(finalInventory)
             protocol = finalProtocol
+
+            // Wahoo-legacy unlock handshake (verified live on the H1): the
+            // trainer ignores ERG writes until it has seen [0x20 0xEE 0xFC]
+            // on the control characteristic and been given time to settle.
+            val unlock = codec.encodeUnlock(finalProtocol)
+            val cc = controlChar
+            if (unlock.isNotEmpty() && cc != null) {
+                println("[smoke] unlock -> $cc frame=${unlock.joinToString(" ") { "%02x".format(it) }}")
+                runCatching { backend.writeCharacteristic(key, cc, unlock) }
+                    .onFailure { println("[smoke] unlock write failed: ${it.message}") }
+                delay(codec.unlockSettleMillis(finalProtocol))
+            }
+
+            println("[smoke] connected: protocol=$finalProtocol telemetry=$telemetryChar speed=$speedChar(notify=$speedCharNotified) control=$controlChar(indicate=$controlIndicates)")
             _state.value = TrainerState.Connected(finalProtocol)
             startSessionJobs(key, services)
         } catch (e: Exception) {
@@ -227,6 +254,7 @@ class BlueFalconTrainerClient(
         if (frame.isEmpty()) return ControlResult.Failed("no control frame for protocol")
         val key = activeKey ?: return ControlResult.Failed("not connected")
         val char = controlChar ?: return ControlResult.Failed("no control characteristic")
+        println("[smoke] controlWrite -> $char frame=${frame.joinToString(" ") { "%02x".format(it) }}")
         return try {
             val before = ackSeq.get()
             backend.writeCharacteristic(key, char, frame)
@@ -239,8 +267,10 @@ class BlueFalconTrainerClient(
             } else {
                 false
             }
+            println("[smoke] controlWrite result=${if (acked) "ACKNOWLEDGED" else "written-no-indication"}")
             if (acked) ControlResult.Acknowledged else ControlResult.Written
         } catch (e: Exception) {
+            println("[smoke] controlWrite FAILED: ${e.message}")
             ControlResult.Failed(e.message ?: "control write failed")
         }
     }
@@ -272,31 +302,15 @@ class BlueFalconTrainerClient(
 
         // Telemetry pipeline.
         telemetryChar?.let { t ->
+            var logged = 0
             jobs += scope.launch {
                 backend.charValues(key, t).collect { v ->
+                    if (logged < 3) {
+                        println("[smoke] telemetry frame (${v.size}B): ${v.take(8).joinToString(" ") { "%02x".format(it) }}")
+                        logged++
+                    }
                     val p = CyclingPowerMeasurement.parse(v) ?: return@collect
                     updateTelemetry { it.copy(watts = p.watts, lastUpdatedAtMillis = timeMillis(), stale = false) }
-                }
-            }
-        }
-
-        // Speed pipeline: notify if it was enabled, else poll.
-        speedChar?.let { s ->
-            if (speedCharNotified) {
-                jobs += scope.launch {
-                    backend.charValues(key, s).collect { v ->
-                        val spd = SpeedCharacteristic.parse(v) ?: return@collect
-                        updateTelemetry { it.copy(speedKph = spd, lastUpdatedAtMillis = timeMillis(), stale = false) }
-                    }
-                }
-            } else {
-                jobs += scope.launch {
-                    while (true) {
-                        delay(telemetryPollIntervalMillis)
-                        val v = runCatching { backend.readCharacteristic(key, s) }.getOrNull() ?: continue
-                        val spd = SpeedCharacteristic.parse(v) ?: continue
-                        updateTelemetry { it.copy(speedKph = spd, lastUpdatedAtMillis = timeMillis(), stale = false) }
-                    }
                 }
             }
         }

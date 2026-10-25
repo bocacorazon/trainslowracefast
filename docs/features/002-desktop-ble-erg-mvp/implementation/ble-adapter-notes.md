@@ -90,3 +90,28 @@ writes incl. fallback chars and FTMS path, min-load, user + unexpected
 disconnect), parser and codec unit tests, and the pre-existing protocol
 classifier/exporter suites. `:app:compileDebugKotlin` (Android target of the
 changed commonMain) also passes.
+
+## Live verification (2026-10-25 smoke ride) — protocol CORRECTED
+
+The best-effort frames above were wrong: the H1 acknowledged writes on
+`ca31a533` (true CycleOps vendor char) but did not act on them. The real
+ERG control path is the **Wahoo-legacy protocol** on
+`a026e005-0a7d-4ab3-97fa-f1500f9feb8b` (the pre-FTMS "Wahoo extension to
+the Cycling Power Service" that CycleOps also used; confirmed by Saris
+engineering via Xert forums and cross-checked against qdomyos-zwift
+`src/devices/wahookickrsnapbike`):
+
+- **Unlock at connect**: `[0x20, 0xEE, 0xFC]` → wait ~700 ms before
+  further writes. ERG writes are ignored without this handshake.
+- **ERG target power**: `[0x42, watts_lo, watts_hi]` (op 66 = setErgMode,
+  uint16 LE watts). Ack indication observed.
+- **Min load / release**: `[0x42, 0x00, 0x00]` (ERG target 0 W).
+
+Also corrected from the same ride:
+- 0x2A63 Cycling Power Measurement is **flags uint16 + power sint16 at
+  bytes 2..3** (the 1-byte-flags guess never parsed real 18-byte frames).
+- 0x2A65 is Cycling Power Vector on the H1, NOT speed — speed reads were
+  garbage (frozen 32.8 km/h); speed telemetry dropped until a real
+  source exists.
+- FTMS Set Target Power is op **0x05** (not 0x02) per FTMS spec 4.16.2.6
+  (H1 has no FTMS service; corrected for future trainers).
