@@ -1,0 +1,351 @@
+{
+  "schema_version": "2",
+  "revision": 1,
+  "context": {
+    "schema_version": "hermoso-context/v1",
+    "project_id": "project-5cf55b9fce50644cfbe9f362",
+    "feature_id": "003-multi-sensor-telemetry",
+    "run_id": "run-e9026b82977e127fea807e37",
+    "repository": {
+      "repository": "/home/marcos/Projects/trainslowracefast",
+      "remote_url": "https://github.com/bocacorazon/trainslowracefast.git",
+      "default_branch": "main"
+    }
+  },
+  "feature": {
+    "id": "003-multi-sensor-telemetry",
+    "title": "Multi-sensor telemetry: simultaneous devices, capability discovery, source mapping, live HR (increment 003)",
+    "objective": "Extend the live-verified desktop ERG MVP to a simultaneous multi-device session: trainer plus HR strap (COOSPO H808S) connected over the same BlueZ stack, per-device capability discovery, a remembered per-data-type source mapping with auto-assign and manual override, and live heart rate on the ride screen - the slice that makes the app training-usable. Cadence ships only if the H1's 0x2A65 Cycling Power Vector probe yields crank revolutions; otherwise it defers without redesign.",
+    "target_repository": {
+      "repository": "/home/marcos/Projects/trainslowracefast",
+      "remote_url": "https://github.com/bocacorazon/trainslowracefast.git",
+      "default_branch": "main"
+    }
+  },
+  "base_model": {
+    "schema_version": "hermoso-repository-model/v1",
+    "snapshot_id": "model-7ec5069cfa2acc0592e74fc5df296f05",
+    "content_hash": "sha256:7ec5069cfa2acc0592e74fc5df296f0549b0ad301b9006c5e8ff9eb8d334606a",
+    "source_revision": "3343c3ad91b1f3f1b37e65d5659e71f57a34bf58",
+    "vocabulary_version": "v1"
+  },
+  "producer": {
+    "skill": "hermoso-design",
+    "runtime": "agent"
+  },
+  "complexity": "complex",
+  "requirements": [
+    {
+      "id": "req-hr-device",
+      "title": "Heart rate strap as a simultaneous BLE device",
+      "statement": "The app connects the COOSPO H808S chest strap over the same BlueZ/sdbus stack while the trainer remains connected, subscribes to the Heart Rate Measurement characteristic (0x2A37, notify), and feeds parsed bpm into telemetry. The strap's actual GATT inventory is captured as a fixture before adapter work (hardware gate).",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "HR is the owner's bar for training-usable; the strap is the only HR hardware owned."
+    },
+    {
+      "id": "req-hr-display",
+      "title": "Live HR on the ride screen",
+      "statement": "The ride screen shows heart rate prominently under the target line in bpm. No data for 3 s renders a red em-dash, identical staleness semantics to watts; stale display never freezes a number.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Grill decision D8: display-only HR, same stale rules as watts."
+    },
+    {
+      "id": "req-capability-discovery",
+      "title": "Per-device capability discovery from GATT inventory",
+      "statement": "Every scanned or connected device is classified into the data types it can provide (trainer/power, control, heart rate, cadence, speed) from its discovered/advertised GATT inventory. Characteristic roles are derived from captured evidence, never from device names or UUID mnemonics. The devices screen shows capability badges per device row.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Owner requirement: the app must discover the data types connected devices provide. The 0x2A65-is-not-speed lesson from 002 is codified here."
+    },
+    {
+      "id": "req-source-mapping",
+      "title": "Data-type to source mapping with manual override",
+      "statement": "Every displayed data type has exactly one assigned source device. Sources auto-assign by capability on connect, are manually overridable via a per-data-type dropdown listing connected capable devices, and the assignment persists across restarts. Connecting an additional device offering an already-assigned data type never silently reassigns.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Grill decisions D4/D9 and the owner's multi-device selection requirement; cadence could later come from the trainer or a dedicated sensor."
+    },
+    {
+      "id": "req-simultaneous",
+      "title": "Simultaneous multi-device connections",
+      "statement": "Trainer and sensors hold concurrent connections over one BlueZ/sdbus backend. The trainer session implementation from 002 is preserved unchanged; sensor sessions are additive and do not disturb trainer control.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Multi-device is the slice's core purpose; destabilizing the live-verified trainer path is the primary risk to manage."
+    },
+    {
+      "id": "req-autoconnect-all",
+      "title": "Auto-connect all remembered sources at launch",
+      "statement": "On launch with remembered sources, the app connects the trainer first (ERG engages as in 002) then each remembered sensor, and lands on the ride screen. First use without remembered sources still opens the devices screen for explicit selection.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Grill decision D6; preserves 002's zero-ceremony startup."
+    },
+    {
+      "id": "req-per-device-reconnect",
+      "title": "Independent per-device reconnect",
+      "statement": "Each device runs its own reconnect loop using 002's backoff schedule. A dropped sensor never disturbs trainer control or other telemetry. The ride-screen status line names which source is reconnecting (e.g. 'HR reconnecting (attempt 2)'). No whole-session reconnect banners.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Grill decision D7; HR straps drop routinely mid-ride and must not degrade the ERG session."
+    },
+    {
+      "id": "req-disconnect-all",
+      "title": "Ride-screen disconnect drops all sources",
+      "statement": "The ride-screen Disconnect performs the trainer's verified min-load release sequence first, then disconnects every connected source. Per-device disconnect is available on the devices screen.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Grill decision D10."
+    },
+    {
+      "id": "req-cadence-gated",
+      "title": "Cadence shipped only on captured evidence",
+      "statement": "The hardware capture probes the H1's Cycling Power Vector (0x2A65) for cumulative crank revolutions while pedaling. If present, trainer-derived cadence (from crank revs and last crank event time) ships in this slice with the same stale rules; if absent, cadence is deferred and no cadence UI ships. The outcome is recorded in the capture notes either way.",
+      "kind": "functional",
+      "priority": "should",
+      "rationale": "Grill decision D3; 002 proved this trainer's BLE surface does not match UUID folklore - evidence gates the feature."
+    },
+    {
+      "id": "req-speed-hidden",
+      "title": "No fabricated metrics on the ride screen",
+      "statement": "The dead '— km/h' speed placeholder is removed. A data type renders on the ride screen only when a live source for it exists. No virtual/computed speed is displayed.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Grill decision D11 and the honest-display principle from 002 (frozen 32.8 km/h lesson)."
+    },
+    {
+      "id": "req-hr-persistence",
+      "title": "Remembered sensor identities",
+      "statement": "Persisted settings grow a per-data-type source identity map (heart rate, cadence when applicable) alongside the existing trainer identity, target wattage, and paused flag; all survive restarts.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Auto-connect (req-autoconnect-all) requires remembering each source."
+    },
+    {
+      "id": "req-transport-agnostic-domain",
+      "title": "Domain layer stays transport- and frontend-agnostic",
+      "statement": "All new domain logic (registry, capabilities, source mapping, HR/cadence parsing, session orchestration) lives in commonMain with no BLE/UI types, behind interfaces, so a future WASM/Web Bluetooth or Android adapter reuses it unchanged.",
+      "kind": "structural",
+      "priority": "must",
+      "rationale": "Owner's toolkit ambition and the 2026-10-25 architecture decision: domain work now survives any execution-model switch later; only the transport layer would be rewritten."
+    },
+    {
+      "id": "req-hardware-evidence",
+      "title": "Hardware capture gate before sensor adapter work",
+      "statement": "The H808S GATT inventory and live 0x2A37 frames, and the H1 0x2A65 probe result, are captured and committed as fixtures before any sensor adapter code is written. Fixture-based tests are built from the real captured bytes, not imagined frames.",
+      "kind": "structural",
+      "priority": "must",
+      "rationale": "002's core lesson: fixture tests built from an imagined wire format pass while the device does something else. Hardware evidence first."
+    },
+    {
+      "id": "req-live-acceptance",
+      "title": "Live acceptance ride with both devices",
+      "statement": "Acceptance requires a real ride with trainer and worn H808S strap: auto-connect of both remembered sources, live watts and live HR, ±3 W control intact, strap power-cycle recovering independently while trainer ERG holds, source dropdown reflecting assignments. No pass on fake clients; missing hardware evidence is not passed.",
+      "kind": "functional",
+      "priority": "must",
+      "rationale": "Increment doc requirement 11; 002's outstanding pause/release live checks stay a separate ride by the owner's explicit call."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "ac-both-devices-live",
+      "statement": "With the trainer riding and the H808S strap worn, the ride screen shows live watts and a live bpm heart rate simultaneously.",
+      "requirement_ids": ["req-hr-device", "req-hr-display", "req-simultaneous"]
+    },
+    {
+      "id": "ac-badges-discover",
+      "statement": "The devices screen shows capability badges for the trainer (trainer/power, control) and the strap (HR) derived from their GATT inventories.",
+      "requirement_ids": ["req-capability-discovery"]
+    },
+    {
+      "id": "ac-autoconnect-launch",
+      "statement": "Restarting the app with remembered trainer and strap auto-connects both (trainer first, ERG engaging) and lands on the ride screen.",
+      "requirement_ids": ["req-autoconnect-all", "req-hr-persistence"]
+    },
+    {
+      "id": "ac-hr-stale-isolated",
+      "statement": "Removing or powering off the strap mid-ride turns the HR readout red/'—' within 3 seconds while watts and ERG control continue unaffected.",
+      "requirement_ids": ["req-hr-display", "req-per-device-reconnect"]
+    },
+    {
+      "id": "ac-hr-reconnect-independent",
+      "statement": "Power-cycling the strap mid-ride reconnects it independently with backoff, the status line naming the HR attempts, and the trainer never leaves riding state.",
+      "requirement_ids": ["req-per-device-reconnect", "req-simultaneous"]
+    },
+    {
+      "id": "ac-source-override-remembered",
+      "statement": "With a second HR-capable device connected, the per-data-type dropdown swaps the heart-rate source and the choice persists after restart; auto-connect never silently reassigns an assigned type.",
+      "requirement_ids": ["req-source-mapping", "req-hr-persistence"]
+    },
+    {
+      "id": "ac-cadence-evidence-gated",
+      "statement": "Cadence either displays live from trainer-derived crank data (probe found crank revolutions) or is absent from the UI (probe did not), and the capture notes record the probe outcome.",
+      "requirement_ids": ["req-cadence-gated"]
+    },
+    {
+      "id": "ac-disconnect-drops-all",
+      "statement": "Ride-screen Disconnect releases the trainer to min load (honest release state as in 002) and then disconnects the strap as well; the devices screen offers per-device disconnect.",
+      "requirement_ids": ["req-disconnect-all"]
+    },
+    {
+      "id": "ac-no-fabricated-metrics",
+      "statement": "No speed (or any other data type without a live source) appears on the ride screen in this slice.",
+      "requirement_ids": ["req-speed-hidden"]
+    },
+    {
+      "id": "ac-transport-agnostic-core",
+      "statement": "All new domain code (registry, capabilities, source mapping, parsers, session orchestration) compiles in commonMain with no BLE, BlueZ, or Compose types, verified by the multi-platform build and contract tests running against fakes.",
+      "requirement_ids": ["req-transport-agnostic-domain"]
+    },
+    {
+      "id": "ac-capture-fixtures-committed",
+      "statement": "The H808S GATT inventory, captured live 0x2A37 frames, and the H1 0x2A65 probe outcome are committed as fixtures before sensor adapter code, and the parser/registry tests are built from those captured bytes.",
+      "requirement_ids": ["req-hardware-evidence"]
+    },
+    {
+      "id": "ac-live-acceptance-ride",
+      "statement": "A real ride with the trainer and the worn H808S passes the increment doc's checklist (auto-connect both, live watts + HR, +/-3 W intact, strap power-cycle recovery, source dropdown); missing hardware evidence is not passed.",
+      "requirement_ids": ["req-live-acceptance"]
+    }
+  ],
+  "interaction_surfaces": [
+    {
+      "id": "surf-ride-screen-003",
+      "title": "Desktop ride screen (multi-sensor)",
+      "kind": "ui",
+      "source": "planned",
+      "description": "Compose Desktop ride screen evolved from 002: large actual power, target wattage line, heart rate in bpm directly under the target line (red and em-dash when stale), per-source reconnect status in the connection/control status line, +/-3 W buttons, numeric field, Pause/Resume, Disconnect (drops all sources after trainer min-load release). The speed line is removed."
+    },
+    {
+      "id": "surf-devices-screen-003",
+      "title": "Desktop devices screen (multi-device)",
+      "kind": "ui",
+      "source": "planned",
+      "description": "Devices screen evolved from 002: bounded scan list with capability badges per row (trainer/power, control, HR, cadence), any device connectable simultaneously, per-device disconnect buttons, and a data-sources panel with one dropdown per data type listing connected capable devices (the manual override for the source mapping)."
+    },
+    {
+      "id": "surf-device-registry",
+      "title": "Device registry, capabilities, source mapping (core)",
+      "kind": "api",
+      "source": "planned",
+      "description": "commonMain device/ package: DeviceRegistry of connected devices, DeviceCapabilities derived by the GATT-inventory classifier (data types: power, control, heart rate, cadence, speed), and SourceMapper assigning exactly one source device per data type with auto-assign on connect, manual override, persistence, and no silent reassignment."
+    },
+    {
+      "id": "surf-sensor-parsers",
+      "title": "HR and cadence telemetry parsers (core)",
+      "kind": "api",
+      "source": "planned",
+      "description": "commonMain sensor/ package: HeartRateMeasurement (0x2A37 flags + uint8 bpm, standard frame) and CyclingPowerVector (0x2A65 cumulative crank revolutions + last crank event time, evidence-gated), feeding an extended Telemetry (heartRateBpm, cadenceRpm) under the single 3 s stale clock."
+    },
+    {
+      "id": "surf-sensor-session",
+      "title": "Multi-device BLE transport session (JVM)",
+      "kind": "api",
+      "source": "planned",
+      "description": "jvmMain generalization of BlueFalconBleClient: concurrent device connections over one sdbus backend; additive sensor sessions (connect, discover, subscribe 0x2A37/0x2A65, parse, feed telemetry) each with an independent reconnect loop using 002's backoff schedule; the trainer session code path from 002 remains untouched."
+    },
+    {
+      "id": "surf-session-controller",
+      "title": "Session orchestration (core)",
+      "kind": "api",
+      "source": "planned",
+      "description": "commonMain SessionController: launch-time auto-connect of remembered sources (trainer first, then sensors), ride-screen Disconnect as trainer-min-load-release then drop-all, and exposure of per-device connection state to the UI status line."
+    },
+    {
+      "id": "surf-settings-store-003",
+      "title": "Persisted settings (source identities)",
+      "kind": "api",
+      "source": "planned",
+      "description": "~/.config/trainerapp/settings.json grows sources: { heartRate: identity, cadence: identity? } alongside trainer identity, targetWatts, paused. SettingsStore interface unchanged in shape (load/update), with a forward-compatible settings schema."
+    }
+  ],
+  "constraints": [
+    "Base is main @ 3343c3a (increment 002 merged via PR #5 2cabd20; docs PR #6 3343c3a). Live-verified in 002 and assumed working: the Wahoo-legacy ERG protocol on a026e005 (unlock 20 EE FC, ERG op 0x42 + uint16 watts), SIG-spec Cycling Power Measurement parsing (flags uint16 LE, power sint16 LE at bytes 2..3), bounded 12 s scan, remembered-trainer auto-connect, and the ErgController state machine on real hardware.",
+    "0x2A65 on the H1 is Cycling Power Vector, not a speed characteristic (live-verified in 002); treat all characteristic roles as unproven until captured.",
+    "Do not modify the live-verified trainer transport path (BlueFalconTrainerClient control/telemetry/unlock sequence) except additively for multi-device support",
+    "All domain logic in commonMain; no BLE or Compose types in domain code",
+    "Fixture-based tests must be built from captured hardware bytes, never invented frames",
+    "The H808S capture and the H1 0x2A65 probe precede sensor adapter implementation (hardware gate)",
+    "Owner must be asked to power on hardware; never assume the trainer or strap is available"
+  ],
+  "non_goals": [
+    "Recording / FIT export (power + HR tracks) - separate slice",
+    "HR zones, alerts, configurable max HR",
+    "Dedicated cadence sensor support if the H1 probe fails (capability hooks remain for a later slice)",
+    "ANT+ input transport (model supports it, not implemented)",
+    "Android target",
+    "WASM / Web Bluetooth execution model (deferred pending a bounded spike; Linux Web Bluetooth is flag-gated today)"
+  ],
+  "decisions": [
+    {
+      "decision": "HR scope is display-only: live bpm, 3 s stale rules, no zones/alerts.",
+      "rationale": "Grill D2/D8. Training features around HR build on a recording slice later."
+    },
+    {
+      "decision": "Cadence is evidence-gated: probe the H1's 0x2A65 for crank revolutions; ship trainer-derived cadence only if present, else defer.",
+      "rationale": "Grill D3. The H1 sends cadence over ANT+ FE-C but its BLE CPM frames carry no crank data (live-verified flags 0x1834)."
+    },
+    {
+      "decision": "Source mapping: auto-assign by capability, manual override per data type, remembered, never silently reassigned.",
+      "rationale": "Grill D4 and the owner's requirement that the user selects which device provides which data type."
+    },
+    {
+      "decision": "Auto-connect all remembered sources at launch, trainer first.",
+      "rationale": "Grill D6. Preserves 002's zero-ceremony startup; ERG engages before sensors attach."
+    },
+    {
+      "decision": "Independent per-device reconnect with 002's backoff schedule; status line names the reconnecting source.",
+      "rationale": "Grill D7. HR strap drops are routine and must not degrade the ERG session."
+    },
+    {
+      "decision": "Ride-screen Disconnect drops all sources; per-device disconnect lives on the devices screen.",
+      "rationale": "Grill D9/D10."
+    },
+    {
+      "decision": "Speed is hidden until a real source exists; no virtual speed.",
+      "rationale": "Grill D11; honest-display principle after the frozen 32.8 km/h bug."
+    },
+    {
+      "decision": "Keep the Linux JVM desktop target; do not convert to WASM now.",
+      "rationale": "Architecture discussion 2026-10-25: Web Bluetooth is flag-gated/experimental on Linux (the owner's primary platform); the domain core is already portable; a bounded WASM spike happens after this slice to decide the toolkit's web story with evidence."
+    },
+    {
+      "decision": "002's outstanding pause/release live checks stay separate from this slice's acceptance.",
+      "rationale": "Owner's explicit call (grill D12); they need a second person present."
+    },
+    {
+      "decision": "Hardware owned for acceptance: COOSPO H808S BLE+ANT+ chest strap.",
+      "rationale": "Grill D1; expected standard Heart Rate service 0x180D, verified at capture."
+    }
+  ],
+  "business_vocabulary": [
+    { "id": "term-data-type", "term": "data type", "definition": "A kind of telemetry or control a device can provide: power, control, heart rate, cadence, speed.", "aliases": ["metric", "data kind"] },
+    { "id": "term-capability", "term": "capability", "definition": "A device's discovered ability to provide a data type, derived from its GATT inventory.", "aliases": ["device capability"] },
+    { "id": "term-source", "term": "source", "definition": "The single device currently assigned to provide a data type.", "aliases": ["data source"] },
+    { "id": "term-source-mapping", "term": "source mapping", "definition": "The assignment of every displayed data type to exactly one connected device, persisted across restarts.", "aliases": ["metric-to-source map"] },
+    { "id": "term-sensor-session", "term": "sensor session", "definition": "A per-device connection lifecycle (connect, subscribe, parse, reconnect with backoff, disconnect) for a non-trainer device.", "aliases": ["sensor connection"] },
+    { "id": "term-stale", "term": "stale", "definition": "No telemetry from a source for 3 seconds; the display shows an em-dash, never a frozen number.", "aliases": ["stale telemetry"] },
+    { "id": "term-training-usable", "term": "training-usable", "definition": "The owner's bar: live power control plus live heart rate during a ride.", "aliases": ["usable for training"] }
+  ],
+  "architecture_boundaries": [
+    "Domain (commonMain): registry, capabilities, source mapping, HR/cadence parsers, session orchestration - no BLE or UI types",
+    "Transport (jvmMain): BlueZ/sdbus multi-device sessions - the only layer a WASM port would rewrite",
+    "UI (app-desktop): Compose screens consuming state flows only",
+    "The 002 trainer transport path is treated as frozen-verified: additive changes only"
+  ],
+  "interfaces_and_data_changes": [
+    "core commonMain: new device/ (DeviceRegistry, DeviceCapabilities, SourceMapper), sensor/ (HeartRateMeasurement, CyclingPowerVector), SessionController; Telemetry gains heartRateBpm and cadenceRpm",
+    "core jvmMain: BlueFalconBleClient supports concurrent connections; new sensor session implementation (subscribe 0x2A37 notify; poll/subscribe 0x2A65 per capture evidence)",
+    "ProtocolClassifier extended to recognize Heart Rate service (0x180D), CSC (0x1816), RSC (0x1814), and Cycling Power Vector crank data",
+    "settings.json: sources.heartRate, sources.cadence added",
+    "fixtures: hr-h808s-gatt-inventory.json + captured 0x2A37 frames + H1 0x2A65 probe result, committed by the capture work item"
+  ],
+  "rollout_and_compatibility": [
+    "Single-user desktop app; settings file grows new keys forward-compatibly",
+    "Existing remembered trainer/target/paused continue to work unchanged",
+    "No external API or schema consumed by others yet"
+  ],
+  "unresolved_questions": []
+}

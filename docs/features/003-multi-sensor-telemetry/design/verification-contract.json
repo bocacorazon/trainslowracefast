@@ -1,0 +1,285 @@
+{
+  "schema_version": "2",
+  "revision": 1,
+  "context": {
+    "schema_version": "hermoso-context/v1",
+    "project_id": "project-5cf55b9fce50644cfbe9f362",
+    "feature_id": "003-multi-sensor-telemetry",
+    "run_id": "run-e9026b82977e127fea807e37",
+    "repository": {
+      "repository": "/home/marcos/Projects/trainslowracefast",
+      "remote_url": "https://github.com/bocacorazon/trainslowracefast.git",
+      "default_branch": "main"
+    }
+  },
+  "feature_design": {
+    "context": {
+      "schema_version": "hermoso-context/v1",
+      "project_id": "project-5cf55b9fce50644cfbe9f362",
+      "feature_id": "003-multi-sensor-telemetry",
+      "run_id": "run-e9026b82977e127fea807e37",
+      "repository": {
+        "repository": "/home/marcos/Projects/trainslowracefast",
+        "remote_url": "https://github.com/bocacorazon/trainslowracefast.git",
+        "default_branch": "main"
+      }
+    },
+    "kind": "feature-design",
+    "path": "docs/features/003-multi-sensor-telemetry/design/feature-design.json",
+    "revision": 1,
+    "hash": "sha256:5c931e909b73c0b76856cd4b2399eedf1ebce91db297f1ccc8eccbd93c20d589"
+  },
+  "base_model": {
+    "schema_version": "hermoso-repository-model/v1",
+    "snapshot_id": "model-7ec5069cfa2acc0592e74fc5df296f05",
+    "content_hash": "sha256:7ec5069cfa2acc0592e74fc5df296f0549b0ad301b9006c5e8ff9eb8d334606a",
+    "source_revision": "3343c3ad91b1f3f1b37e65d5659e71f57a34bf58",
+    "vocabulary_version": "v1"
+  },
+  "producer": {
+    "skill": "hermeso-verification-author",
+    "runtime": "agent"
+  },
+  "aggregation": {
+    "strategy": "all_required"
+  },
+  "artifacts": [
+    {
+      "id": "probe-hardware-evidence-003",
+      "kind": "probe",
+      "path": "probes/collect-hardware-evidence.sh",
+      "content_hash": "sha256:3c65d06bcf1bef89fd0dbf17bf17f7626ec804920c09e081ff6eeb7d31a6106c"
+    }
+  ],
+  "judgments": [
+    {
+      "id": "j-jvm-tests-003",
+      "title": "Core logic test suite (registry, capabilities, source mapping, HR/CPV parsers, sensor sessions, session orchestration, persistence)",
+      "modality": "deterministic",
+      "requirement_ids": [
+        "req-hr-device",
+        "req-hr-display",
+        "req-capability-discovery",
+        "req-source-mapping",
+        "req-simultaneous",
+        "req-autoconnect-all",
+        "req-per-device-reconnect",
+        "req-disconnect-all",
+        "req-cadence-gated",
+        "req-speed-hidden",
+        "req-hr-persistence",
+        "req-transport-agnostic-domain"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-both-devices-live",
+        "ac-badges-discover",
+        "ac-autoconnect-launch",
+        "ac-hr-stale-isolated",
+        "ac-hr-reconnect-independent",
+        "ac-source-override-remembered",
+        "ac-cadence-evidence-gated",
+        "ac-disconnect-drops-all",
+        "ac-no-fabricated-metrics",
+        "ac-transport-agnostic-core"
+      ],
+      "surface_ids": [
+        "surf-device-registry",
+        "surf-sensor-parsers",
+        "surf-sensor-session",
+        "surf-session-controller",
+        "surf-settings-store-003",
+        "surf-ride-screen-003",
+        "surf-devices-screen-003"
+      ],
+      "execution": {
+        "command": [
+          "./gradlew",
+          "jvmTest"
+        ],
+        "timeout_seconds": 1200
+      },
+      "oracle": {
+        "type": "exit_code",
+        "expected": "0"
+      },
+      "required_evidence": [
+        "Gradle jvmTest passes: DeviceRegistry tracks multiple concurrently connected devices and derives capabilities from GATT inventories (trainer fixture -> trainer/power+control; captured H808S fixture -> heart rate; CPV-carrying inventory -> cadence when the probe found crank data, absent otherwise); SourceMapper auto-assigns each free data type to the first capable device, rejects silent reassignment when a second capable device connects, applies manual override, and persists assignments across store round-trips; HeartRateMeasurement parses the captured H808S 0x2A37 frames byte-exactly (fixture bytes, not invented frames); CyclingPowerVector derives cadence from cumulative crank revolutions and last crank event time or is absent per the recorded probe outcome; the multi-device fake-backend contract tests show trainer + strap connected simultaneously with the trainer's 002 control path unchanged, per-device independent reconnect loops with backoff (strap drop leaves trainer riding), SessionController auto-connect order (trainer first, then sensors) at launch with remembered identities, and Disconnect-all performing the trainer min-load release then dropping every source; telemetry heartRateBpm/cadenceRpm ride the same 3 s stale clock; no speed source exists and no speed is rendered."
+      ]
+    },
+    {
+      "id": "j-desktop-build-003",
+      "title": "Compose Multiplatform desktop module builds (multi-sensor UI)",
+      "modality": "deterministic",
+      "requirement_ids": [
+        "req-hr-display",
+        "req-speed-hidden",
+        "req-capability-discovery",
+        "req-source-mapping"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-no-fabricated-metrics",
+        "ac-badges-discover",
+        "ac-source-override-remembered"
+      ],
+      "surface_ids": [
+        "surf-ride-screen-003",
+        "surf-devices-screen-003"
+      ],
+      "execution": {
+        "command": [
+          "./gradlew",
+          ":app-desktop:build"
+        ],
+        "timeout_seconds": 1200
+      },
+      "oracle": {
+        "type": "exit_code",
+        "expected": "0"
+      },
+      "required_evidence": [
+        "app-desktop module compiles and its checks pass: ride screen with HR under the target line and no speed line, devices screen with capability badges, per-device connect/disconnect, and the data-sources dropdown panel"
+      ]
+    },
+    {
+      "id": "j-repo-build-003",
+      "title": "Whole repository build stays green",
+      "modality": "deterministic",
+      "requirement_ids": [
+        "req-transport-agnostic-domain"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-transport-agnostic-core"
+      ],
+      "surface_ids": [
+        "surf-device-registry",
+        "surf-sensor-parsers",
+        "surf-sensor-session",
+        "surf-session-controller",
+        "surf-settings-store-003",
+        "surf-ride-screen-003",
+        "surf-devices-screen-003"
+      ],
+      "execution": {
+        "command": [
+          "./gradlew",
+          "build"
+        ],
+        "timeout_seconds": 1800
+      },
+      "oracle": {
+        "type": "exit_code",
+        "expected": "0"
+      },
+      "required_evidence": [
+        "Full Gradle build exits 0 across all modules and targets (core jvm + android, app, app-linux, app-desktop) with the new domain code compiling in commonMain only \u2014 no regression to increment-001/002 modules"
+      ]
+    },
+    {
+      "id": "j-hardware-capture-003",
+      "title": "Hardware capture provenance for the H808S strap and the H1 0x2A65 cadence probe",
+      "modality": "rubric",
+      "requirement_ids": [
+        "req-hardware-evidence",
+        "req-capability-discovery",
+        "req-cadence-gated"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-capture-fixtures-committed",
+        "ac-badges-discover",
+        "ac-cadence-evidence-gated"
+      ],
+      "surface_ids": [
+        "surf-sensor-parsers",
+        "surf-device-registry",
+        "surf-sensor-session"
+      ],
+      "execution": {
+        "command": [
+          "bash",
+          "probes/collect-hardware-evidence.sh"
+        ],
+        "timeout_seconds": 120,
+        "working_directory": "docs/features/003-multi-sensor-telemetry/design"
+      },
+      "oracle": {
+        "type": "rubric"
+      },
+      "rubric": {
+        "judge": "rubric",
+        "criteria": [
+          "R1 Strap capture: the evidence shows the powered-on COOSPO H808S was captured on the target Linux machine; the committed fixture (core/src/commonTest/resources/fixtures/hr-h808s-gatt-inventory.json) carries capture provenance (date, method, machine) and its service/characteristic list reflects real hardware, not a hand-invented Heart Rate Service template.",
+          "R2 Live frames: captured live 0x2A37 Heart Rate Measurement frames are committed (fixture or notes) and the parser tests use those exact bytes; if the strap deviates from the standard flags+bpm layout, the deviation is documented and the parser matches the captured reality.",
+          "R3 Cadence probe: the notes record the H1 0x2A65 (Cycling Power Vector) probe outcome either way \u2014 cumulative crank revolutions present (cadence in-slice, derivation documented) or absent (cadence deferred honestly) \u2014 and the shipped behavior matches the recorded outcome.",
+          "R4 Concurrency evidence: the capture notes state whether trainer + strap held simultaneous BlueZ connections during capture, since req-simultaneous depends on it.",
+          "R5 Privacy: the committed fixture and evidence contain no Bluetooth addresses (probe privacy scan reports clean)."
+        ]
+      },
+      "required_evidence": [
+        "probe output: fixture present, parseable, service list printed",
+        "probe output: capture provenance date present, 0x2A65 outcome recorded",
+        "probe output: privacy scan clean",
+        "implementation notes with capture provenance under docs/features/003-multi-sensor-telemetry/implementation/"
+      ]
+    },
+    {
+      "id": "j-live-ride-003",
+      "title": "Live acceptance ride with trainer and worn HR strap",
+      "modality": "rubric",
+      "requirement_ids": [
+        "req-live-acceptance",
+        "req-hr-device",
+        "req-hr-display",
+        "req-simultaneous",
+        "req-autoconnect-all",
+        "req-per-device-reconnect",
+        "req-source-mapping",
+        "req-disconnect-all"
+      ],
+      "acceptance_criterion_ids": [
+        "ac-live-acceptance-ride",
+        "ac-both-devices-live",
+        "ac-badges-discover",
+        "ac-autoconnect-launch",
+        "ac-hr-stale-isolated",
+        "ac-hr-reconnect-independent",
+        "ac-source-override-remembered",
+        "ac-disconnect-drops-all"
+      ],
+      "surface_ids": [
+        "surf-ride-screen-003",
+        "surf-devices-screen-003",
+        "surf-sensor-session",
+        "surf-session-controller"
+      ],
+      "execution": {
+        "command": [
+          "bash",
+          "probes/collect-hardware-evidence.sh"
+        ],
+        "timeout_seconds": 120,
+        "working_directory": "docs/features/003-multi-sensor-telemetry/design"
+      },
+      "oracle": {
+        "type": "rubric"
+      },
+      "rubric": {
+        "judge": "rubric",
+        "criteria": [
+          "R1 Simultaneous live data: the ride evidence shows live watts and live bpm on the ride screen at the same time, with the trainer holding ERG at the target throughout.",
+          "R2 Launch auto-connect: with remembered trainer and strap, an app restart auto-connected both (trainer first, ERG engaging) and landed on the ride screen without manual selection.",
+          "R3 Capability badges: the devices screen shows the trainer and the strap with their discovered capability badges.",
+          "R4 Strap drop isolation: removing or powering off the strap mid-ride turned the HR readout red/em-dash within 3 seconds while watts and ERG control were unaffected; the status line named the HR reconnect attempts.",
+          "R5 Strap recovery: re-powering the strap recovered it independently; the trainer never left the riding state.",
+          "R6 Source mapping: the data-sources dropdown showed the strap as the heart-rate source, and any override performed during the ride is reflected and remembered.",
+          "R7 Disconnect-all: ride-screen Disconnect released the trainer to minimum load and also disconnected the strap; the release state was reported honestly.",
+          "R8 Evidence quality: the ride evidence (log excerpt and/or screen capture) is committed under docs/features/003-multi-sensor-telemetry/implementation/, covers at least a 5-minute ride, contains no Bluetooth addresses, and reflects the real Hammer + H808S (not fake clients)."
+        ]
+      },
+      "required_evidence": [
+        "probe output: implementation evidence files listed and non-empty",
+        "committed ride evidence: log excerpt or screen capture of the dual-device ride",
+        "rider confirmation of each checklist item in the evidence doc"
+      ]
+    }
+  ]
+}
