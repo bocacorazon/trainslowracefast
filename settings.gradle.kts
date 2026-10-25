@@ -17,3 +17,4 @@ rootProject.name = "trainerapp"
 include(":core")
 include(":app")
 include(":app-linux")
+include(":app-desktop")
