@@ -33,20 +33,41 @@ private fun String.shortUuid(): String =
 /**
  * Classify a connected trainer from its discovered GATT inventory.
  *
- * Rules (feature design):
+ * Rules (finalized from the live hardware capture of a first-generation
+ * CycleOps Hammer H1, 2026-10-24 — see
+ * core/src/commonTest/resources/fixtures/hammer-gatt-inventory.json):
  *  - FTMS when service 0x1826 is present with control point 0x2AD9;
- *  - CYCLEOPS_PROPRIETARY when the expected CycleOps/Saris service is present
- *    (UUID finalized by the hardware capture step; 0x1812-8dc is the
- *    CycleOps/Saris service observed in the wild);
- *  - TELEMETRY_ONLY when power (0x2A36) can be read/notify but no control path;
+ *  - CYCLEOPS_PROPRIETARY when the captured Saris vendor service
+ *    c0f4013a-... is present with its write+indicate control characteristic,
+ *    or the Saris vendor control characteristic a026e005-... appears inside
+ *    the Cycling Power service. NOTE: the captured Hammer exposes NO FTMS —
+ *    its control opcodes are proprietary and must be reverse-engineered by
+ *    the BLE adapter work item; classification only detects the control
+ *    path's presence.
+ *  - TELEMETRY_ONLY when power is readable (Cycling Power Measurement
+ *    0x2A63 or Indoor Bike Data 0x2A36, notify) but no control path exists;
  *  - UNSUPPORTED otherwise.
  */
 object ProtocolClassifier {
 
     const val FTMS_SERVICE = "1826"
     const val FTMS_CONTROL_POINT = "2ad9"
+    const val CYCLING_POWER_SERVICE = "1818"
+    const val CYCLING_POWER_MEASUREMENT = "2a63"
     const val INDOOR_BIKE_DATA = "2a36"
-    const val CYCLEOPS_SERVICE = "1812-8dc"
+    const val SPEED = "2a65"
+
+    /** Saris/CycleOps vendor service observed on the live Hammer H1. */
+    const val CYCLEOPS_VENDOR_SERVICE = "c0f4013a-a837-4165-bab9-654ef70747c6"
+
+    /** Saris vendor control characteristic inside the vendor service (write+indicate). */
+    const val CYCLEOPS_VENDOR_CONTROL = "ca31a533-a858-4dc7-a650-fdeb6dad4c14"
+
+    /** Saris vendor control characteristic inside the Cycling Power service (write+indicate). */
+    const val CYCLEOPS_POWER_SERVICE_CONTROL = "a026e005-0a7d-4ab3-97fa-f1500f9feb8b"
+
+    /** Normalize a UUID to its short form for comparison (e.g. "00002a63-..." -> "2a63"). */
+    fun shortUuid(uuid: String): String = uuid.shortUuid()
 
     fun classify(inventory: GattInventory): TrainerProtocol {
         val ftmsService = inventory.services
@@ -56,16 +77,20 @@ object ProtocolClassifier {
         ) {
             return TrainerProtocol.Ftms
         }
-        if (inventory.services.any { svc ->
-            val u = svc.uuid.lowercase()
-            u.contains("1812") && u.contains("8dc")
-        }) {
+        val allCharacteristics = inventory.services.flatMap { it.characteristics }
+        val hasVendorService = inventory.services.any {
+            it.uuid.lowercase() == CYCLEOPS_VENDOR_SERVICE &&
+                it.characteristics.any { c -> c.uuid.lowercase() == CYCLEOPS_VENDOR_CONTROL }
+        }
+        val hasPowerServiceControl = allCharacteristics.any {
+            it.uuid.lowercase() == CYCLEOPS_POWER_SERVICE_CONTROL
+        }
+        if (hasVendorService || hasPowerServiceControl) {
             return TrainerProtocol.CycleOpsProprietary
         }
-        val powerReadable = inventory.services.any { service ->
-            service.characteristics.any {
-                it.uuid.shortUuid() == INDOOR_BIKE_DATA && "notify" in it.properties
-            }
+        val powerReadable = allCharacteristics.any {
+            (it.uuid.shortUuid() == CYCLING_POWER_MEASUREMENT ||
+                it.uuid.shortUuid() == INDOOR_BIKE_DATA) && "notify" in it.properties
         }
         if (powerReadable) return TrainerProtocol.TelemetryOnly
         return TrainerProtocol.Unsupported
