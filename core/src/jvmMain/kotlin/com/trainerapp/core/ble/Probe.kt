@@ -4,5 +4,6 @@ package com.trainerapp.core.ble
 // Kotlin metadata is readable by this project's compiler.
 import com.monkopedia.bluefalcon.sdbus.SdbusEngine
 import dev.bluefalcon.core.BlueFalcon
+import dev.bluefalcon.core.NoOpLogger
 
-fun probeBlueFalcon(): BlueFalcon = BlueFalcon(listOf(SdbusEngine { logger = dev.bluefalcon.core.PrintLnLogger }))
+fun probeBlueFalcon(): BlueFalcon = BlueFalcon { engine = SdbusEngine { logger = NoOpLogger } }

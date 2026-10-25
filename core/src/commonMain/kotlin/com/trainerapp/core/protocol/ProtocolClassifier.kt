@@ -55,6 +55,7 @@ object ProtocolClassifier {
     const val CYCLING_POWER_SERVICE = "1818"
     const val CYCLING_POWER_MEASUREMENT = "2a63"
     const val INDOOR_BIKE_DATA = "2a36"
+    const val SPEED = "2a65"
 
     /** Saris/CycleOps vendor service observed on the live Hammer H1. */
     const val CYCLEOPS_VENDOR_SERVICE = "c0f4013a-a837-4165-bab9-654ef70747c6"
@@ -64,6 +65,9 @@ object ProtocolClassifier {
 
     /** Saris vendor control characteristic inside the Cycling Power service (write+indicate). */
     const val CYCLEOPS_POWER_SERVICE_CONTROL = "a026e005-0a7d-4ab3-97fa-f1500f9feb8b"
+
+    /** Normalize a UUID to its short form for comparison (e.g. "00002a63-..." -> "2a63"). */
+    fun shortUuid(uuid: String): String = uuid.shortUuid()
 
     fun classify(inventory: GattInventory): TrainerProtocol {
         val ftmsService = inventory.services
