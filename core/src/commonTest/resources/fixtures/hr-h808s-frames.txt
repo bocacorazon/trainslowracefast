@@ -1,0 +1,21 @@
+# Live Heart Rate Measurement (0x2A37) frames captured from the COOSPO H808S
+# chest strap (worn), 2026-10-25, Linux/BlueZ 5.85 on the NUC, via
+# org.bluez GattCharacteristic1 PropertiesChanged signal stream (raw
+# notification payloads). Standard Heart Rate Measurement layout:
+# flags byte 0x16 = uint8 bpm, sensor contact supported+detected,
+# RR-intervals present (uint16 LE, 1/1024 s each). One hex frame per line.
+16 58 ab 02
+16 4d 06 03
+16 4d 25 03
+16 4c 58 03
+16 4a 67 03 75 03
+16 4a 7d 03
+16 49 9d 03
+16 49 80 03
+16 48 61 03
+16 48 4f 03
+# Note: two consecutive RR intervals appear in frame 4 (two beats within
+# the ~1 s notify window). BlueZ busctl Value-cache reads during the same
+# session returned 22-byte zero-padded arrays that do NOT match the wire
+# frames — the PropertiesChanged stream is the ground truth; the app-level
+# parser must be tested against these lines.
