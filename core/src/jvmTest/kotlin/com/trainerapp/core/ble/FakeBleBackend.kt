@@ -45,7 +45,7 @@ class FakeBleBackend : BleBackend {
         stopScanCalls += Unit
     }
 
-    override suspend fun connect(deviceKey: String) {
+    override suspend fun connect(deviceKey: String, awaitHandshakeMillis: Long) {
         connectCalls += deviceKey
         connections_.value = connections_.value + (deviceKey to true)
     }

@@ -25,7 +25,16 @@ interface BleBackend {
     suspend fun startScan()
     suspend fun stopScan()
 
-    suspend fun connect(deviceKey: String)
+    /**
+     * Connects a device. `awaitHandshakeMillis` bounds how long the backend
+     * waits for the REAL BlueZ connection before returning (see
+     * BlueFalconBleBackend for why waiting matters): trainers want the full
+     * window (a fresh trainer needs its GATT cached before discovery); a
+     * simple sensor that is not yet ready should fail fast so the session's
+     * reconnect loop can retry quickly instead of burning the whole window
+     * per attempt.
+     */
+    suspend fun connect(deviceKey: String, awaitHandshakeMillis: Long = 10_000)
     suspend fun disconnect(deviceKey: String)
 
     /** Full GATT service discovery for a connected device. */
