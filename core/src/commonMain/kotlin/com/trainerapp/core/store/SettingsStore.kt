@@ -30,7 +30,17 @@ data class AppSettings(
     val trainer: TrainerIdentity? = null,
     val targetWatts: Int = DEFAULT_TARGET_WATTS,
     val paused: Boolean = false,
-)
+    /** Per-data-type source assignments (003): platformId of the device
+     *  providing each data type. Forward-compatible: absent in pre-003
+     *  settings files, defaults are empty. */
+    val sources: Sources = Sources(),
+) {
+    @Serializable
+    data class Sources(
+        val heartRate: String? = null,
+        val cadence: String? = null,
+    )
+}
 
 /**
  * Read/write abstraction over the settings file so the store stays free of
