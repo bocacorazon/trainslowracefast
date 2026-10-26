@@ -42,6 +42,10 @@ Blue Falcon sdbus) · **App:** `:app-desktop:run` from merged main.
 - Trainer: `connected: protocol=CycleOpsProprietary telemetry=00002a63… control=a026e005(indicate=true)`; `controlWrite result=ACKNOWLEDGED`
 - Telemetry: 18-byte CPM frames (`34 18 …`, power sint16 at bytes 2..3), live while pedaling
 - Strap: SensorSession Connected, parsed HR frames flowing to the ride screen (rider-confirmed)
+- Mid-ride the trainer napped once (its known sleep behavior); the rider hit Connect on the
+  Devices screen and it reconnected cleanly. The trainer-auto-reconnect path (D6) was NOT
+  exercised by that event — recorded honestly; it remains covered by contract tests only,
+  alongside 002's deferred pause/release live checks.
 
 No Bluetooth addresses in committed fixtures (privacy scan clean). No pass
 on fake clients: every item above was observed on the real devices.
