@@ -67,9 +67,21 @@ class MultiDeviceSession(
      * Connects a sensor candidate; true only when it subscribed — i.e. the
      * device really offers the heart-rate measurement (capability-derived:
      * the subscription only succeeds when 0x2A37 is in its GATT inventory).
+     *
+     * The platformId→deviceKey resolution uses the trainer client's scan map;
+     * a MISS (the map only fills from a scan this session) triggers a bounded
+     * local scan so a first manual connect never routes a sensor through the
+     * trainer path.
      */
     suspend fun connectSensor(candidate: com.trainerapp.core.domain.TrainerCandidate): Boolean {
-        val key = trainerClient.deviceKeyFor(candidate.platformId) ?: return false
+        var key = trainerClient.deviceKeyFor(candidate.platformId)
+        if (key == null) {
+            // Resolve with a bounded scan of our own (this also refreshes the
+            // trainer client's map for later trainer reconnects).
+            withTimeoutOrNull(12_000) { trainerClient.scan().toList() }
+            key = trainerClient.deviceKeyFor(candidate.platformId)
+        }
+        if (key == null) return false
         val existing = sensorSession
         val session = if (existing != null && existing.deviceKey == key) {
             existing.connect()
