@@ -98,6 +98,16 @@ class BlueFalconBleBackend(
         val peripheral = this.peripheral(deviceKey)
         falcon.connect(peripheral)
         _connectionStates.value = _connectionStates.value + (deviceKey to true)
+        // Wait for the ACTUAL BlueZ connection before returning: connect() is
+        // otherwise fire-and-forget and a immediately-following service
+        // discovery races the handshake, yielding an empty GATT (observed in
+        // the 003 acceptance ride: trainer classified Unsupported with no
+        // telemetry/control path while the UI said riding).
+        withTimeoutOrNull(10_000) {
+            while (falcon.connectionState(peripheral) != BluetoothPeripheralState.Connected) {
+                delay(100)
+            }
+        }
     }
 
     override suspend fun disconnect(deviceKey: String) {
@@ -108,6 +118,14 @@ class BlueFalconBleBackend(
     override suspend fun discoverServices(deviceKey: String): List<BleServiceInfo> {
         val peripheral = this.peripheral(deviceKey)
         falcon.discoverServices(peripheral)
+        // Discovery can return before the GATT is populated (same handshake
+        // race as connect) — wait briefly for a non-empty service list rather
+        // than classifying the device Unsupported off an empty read.
+        withTimeoutOrNull(8_000) {
+            while (peripheral.services.isEmpty()) {
+                delay(150)
+            }
+        }
         return peripheral.services.map { s ->
             BleServiceInfo(
                 uuid = s.uuid.toString().lowercase(),

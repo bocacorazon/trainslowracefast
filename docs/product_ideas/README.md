@@ -15,3 +15,6 @@ revisited, compared, refined, or killed later.
   intended intensity plan rather than merely accumulating load or acute stimulus.
 - `03_hr_spike_anomaly_correction.md`: data-quality layer that detects and flags or
   repairs bogus heart-rate spikes before they pollute downstream metrics.
+- `04_live_training_device_integration.md`: unscheduled research on live aerobic
+  guidance with CycleOps Hammer and Concept2 devices, web delivery, Kotlin device
+  engines, and the hardware/browser evidence needed before implementation.
