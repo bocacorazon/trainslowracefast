@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicLong
  *    falling back to a026e005-... (inside the Cycling Power service)
  */
 class BlueFalconTrainerClient(
-    private val backend: BleBackend,
+    val backend: BleBackend,
     private val codec: ControlCodec = BestEffortSarisCodec,
     private val timeMillis: () -> Long = { System.currentTimeMillis() },
     dispatcher: CoroutineDispatcher = Dispatchers.Default,
@@ -117,6 +117,9 @@ class BlueFalconTrainerClient(
             }
         }
     }
+
+    /** Resolves a stable scan platformId to the backend device key (null if unseen this session). */
+    fun deviceKeyFor(platformId: String): String? = platformIdToDeviceKey[platformId]
 
     override suspend fun connect(candidate: TrainerCandidate) {
         val key = platformIdToDeviceKey[candidate.platformId]
