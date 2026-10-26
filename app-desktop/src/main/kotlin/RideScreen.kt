@@ -14,7 +14,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,20 +40,35 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trainerapp.core.domain.TrainerClient
+import com.trainerapp.core.domain.TrainerTelemetry
 import com.trainerapp.core.erg.ErgController
 import com.trainerapp.core.erg.ErgLink
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 /**
  * The ride screen (grill decisions D3–D9). Consumes only StateFlows from the
- * core: ErgController.state and the TrainerClient telemetry. No GATT or BLE
- * types cross into this file.
+ * core: ErgController.state, the TrainerClient telemetry, and (003) the
+ * strap's HR telemetry + status text. No GATT or BLE types cross into this
+ * file.
  */
 @Composable
-fun RideScreen(erg: ErgController, trainerClient: TrainerClient) {
+fun RideScreen(
+    erg: ErgController,
+    trainerClient: TrainerClient,
+    hrTelemetry: StateFlow<TrainerTelemetry>?,
+    hrStatusText: StateFlow<String>,
+    onDisconnectAll: suspend () -> Unit,
+) {
     val scope = rememberCoroutineScope()
     val ergState by erg.state.collectAsState()
     val telemetry by trainerClient.telemetry.collectAsState()
+
+    // 003: strap heart rate. `hr` is null while no sensor session exists —
+    // the line hides entirely (never a fabricated or dead placeholder).
+    val hr: TrainerTelemetry? = hrTelemetry?.collectAsState()?.value
+    val hrStatus by hrStatusText.collectAsState()
+    val hrExpected = hr != null || hrStatus.isNotBlank()
 
     // Grill decision D8: stale telemetry renders "—", never frozen numbers.
     fun render(v: Any?): String = if (telemetry.stale) "—" else v?.toString() ?: "—"
@@ -111,13 +125,26 @@ fun RideScreen(erg: ErgController, trainerClient: TrainerClient) {
         )
         Spacer(Modifier.height(8.dp))
 
-        Text(
-            text = "${render(telemetry.speedKph?.let { "%.1f".format(it) })} km/h",
-            fontSize = 24.sp,
-        )
-        Spacer(Modifier.height(16.dp))
+        // 003 (grill D8): live heart rate under the target line; same 3 s
+        // stale rules as watts (em-dash, red). The dead speed line from 002
+        // is gone — no metric renders without a live source (grill D11).
+        if (hrExpected) {
+            val bpm = hr?.heartRateBpm
+            val hrText = when {
+                bpm == null || (hr?.stale == true) -> "—"
+                else -> "$bpm"
+            }
+            Text(
+                text = "$hrText bpm",
+                fontSize = 24.sp,
+                color = if (hrText == "—") Color(0xFFB71C1C) else Color(0xFF1B5E20),
+            )
+            Spacer(Modifier.height(8.dp))
+        }
 
-        // Status line: link, reconnect attempts, pause, clamp notice, release honesty.
+        // Status line: link, reconnect attempts, pause, clamp notice; 003
+        // names the HR source's reconnect state (D7) — e.g. "HR reconnecting
+        // (attempt 2)" — while the trainer stays riding.
         val status = buildString {
             append(
                 when (ergState.link) {
@@ -130,6 +157,9 @@ fun RideScreen(erg: ErgController, trainerClient: TrainerClient) {
             )
             ergState.clampedNotice?.let {
                 append("  •  clamped ${it.requested} → ${it.applied} W")
+            }
+            if (hrExpected && hrStatus.isNotBlank() && hrStatus != "connected") {
+                append("  •  HR $hrStatus")
             }
         }
         Text(text = status, fontSize = 14.sp, color = Color(0xFF616161))
@@ -190,7 +220,9 @@ fun RideScreen(erg: ErgController, trainerClient: TrainerClient) {
             }) {
                 Text(if (ergState.paused) "Resume" else "Pause", fontSize = 18.sp)
             }
-            OutlinedButton(onClick = { scope.launch { erg.disconnect() } }) {
+            // 003 (grill D10): ride-screen Disconnect drops ALL sources —
+            // the trainer's min-load release first, then the strap.
+            OutlinedButton(onClick = { scope.launch { onDisconnectAll() } }) {
                 Text("Disconnect", fontSize = 18.sp)
             }
         }

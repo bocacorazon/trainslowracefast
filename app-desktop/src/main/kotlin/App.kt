@@ -26,7 +26,12 @@ enum class Screen { Ride, Devices }
  * remembered trainer) open on the ride screen.
  */
 @Composable
-fun TrainerApp(erg: ErgController, trainerClient: TrainerClient, settingsStore: SettingsStore) {
+fun TrainerApp(
+    erg: ErgController,
+    trainerClient: TrainerClient,
+    settingsStore: SettingsStore,
+    session: MultiDeviceSession,
+) {
     var screen by remember {
         mutableStateOf(if (settingsStore.load().trainer != null) Screen.Ride else Screen.Devices)
     }
@@ -41,9 +46,16 @@ fun TrainerApp(erg: ErgController, trainerClient: TrainerClient, settingsStore: 
                 erg = erg,
                 trainerClient = trainerClient,
                 settingsStore = settingsStore,
+                session = session,
                 onConnected = { screen = Screen.Ride },
             )
-            Screen.Ride -> RideScreen(erg = erg, trainerClient = trainerClient)
+            Screen.Ride -> RideScreen(
+                erg = erg,
+                trainerClient = trainerClient,
+                hrTelemetry = session.sensorTelemetry,
+                hrStatusText = session.sensorStatusText,
+                onDisconnectAll = { session.disconnectAll(erg) },
+            )
         }
     }
 }
