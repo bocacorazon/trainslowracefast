@@ -47,6 +47,7 @@ data class TrainerCandidate(
 data class TrainerTelemetry(
     val watts: Int? = null,
     val speedKph: Double? = null,
+    val heartRateBpm: Int? = null,
     val lastUpdatedAtMillis: Long = 0L,
     val stale: Boolean = false,
 )

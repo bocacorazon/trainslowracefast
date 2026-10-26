@@ -80,16 +80,20 @@ class DeviceRegistryTest {
     fun telemetryWithoutControlPathLacksControlCapability() {
         val caps = CapabilityDiscovery.discover(powerTelemetryOnlyInventory())
 
+        // 0x2A36 Indoor Bike Data carries power and speed.
         assertEquals(setOf(DeviceCapability.POWER, DeviceCapability.SPEED), caps)
     }
 
     @Test
-    fun capturedHammerYieldsPowerSpeedAndControl() {
+    fun capturedHammerYieldsPowerAndControlButNoSpeed() {
         val caps = CapabilityDiscovery.discover(capturedHammerInventory())
 
-        // The Hammer H1 measures power and speed (no cadence) and exposes the
-        // Saris vendor control path — captured live 2026-10-24.
-        assertEquals(setOf(DeviceCapability.POWER, DeviceCapability.SPEED, DeviceCapability.CONTROL), caps)
+        // The Hammer H1 measures POWER (0x2A63) and exposes the Wahoo-legacy
+        // control path — captured live 2026-10-24. It provides NO speed over
+        // BLE: the 002 smoke ride proved the earlier "speed" readout was a
+        // misparse of Cycling Power Vector (corrected 2026-10-25), and the
+        // 003 CPV probe confirmed no cadence data either.
+        assertEquals(setOf(DeviceCapability.POWER, DeviceCapability.CONTROL), caps)
     }
 
     @Test
@@ -111,9 +115,9 @@ class DeviceRegistryTest {
         val sources = MetricSourceMap(registry)
         sources.autoAssign()
         assertEquals(trainer, sources.sourceFor(Metric.POWER))
-        assertEquals(trainer, sources.sourceFor(Metric.SPEED))
-        assertEquals(null, sources.sourceFor(Metric.CADENCE))      // the Hammer has none
-        assertEquals(null, sources.sourceFor(Metric.HEART_RATE))   // next slice
+        assertEquals(null, sources.sourceFor(Metric.SPEED))        // the H1 has no speed source (002 live evidence)
+        assertEquals(null, sources.sourceFor(Metric.CADENCE))      // the H1 has none
+        assertEquals(null, sources.sourceFor(Metric.HEART_RATE))   // the strap (003)
     }
 
     @Test
