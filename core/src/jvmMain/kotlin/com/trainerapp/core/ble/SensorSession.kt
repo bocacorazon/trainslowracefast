@@ -41,6 +41,10 @@ class SensorSession(
     private val timeMillis: () -> Long = { System.currentTimeMillis() },
     private val staleAfterMillis: Long = 3_000,
     private val backoffMillis: LongArray = longArrayOf(1_000, 2_000, 5_000, 10_000, 30_000),
+    /** Shorter than the trainer's window: a sensor that is not ready yet
+     *  should fail fast so the reconnect loop retries quickly instead of
+     *  burning the full trainer window per attempt. */
+    private val awaitHandshakeMillis: Long = 3_000,
 ) {
 
     /** Owns its coroutines (the 002 client pattern) so [close] stops everything. */
@@ -54,6 +58,7 @@ class SensorSession(
 
     private var collectJob: Job? = null
     private var reconnectJob: Job? = null
+    private var watchJob: Job? = null
     private var reconnectAttempt = 0
     private var deliberatelyDisconnected = false
 
@@ -66,7 +71,7 @@ class SensorSession(
         deliberatelyDisconnected = false
         _state.value = SensorSessionState.Connecting
         try {
-            backend.connect(deviceKey)
+            backend.connect(deviceKey, awaitHandshakeMillis)
         } catch (e: Exception) {
             _state.value = SensorSessionState.Disconnected
             scheduleReconnect()
@@ -97,6 +102,20 @@ class SensorSession(
         }
         reconnectAttempt = 0
         _state.value = SensorSessionState.Connected
+
+        // Drop watcher (003 ride observation: a power-cycled strap must
+        // recover by itself): watch the backend's connection map and enter
+        // the reconnect loop the moment this device's link drops.
+        watchJob?.cancel()
+        watchJob = scope.launch {
+            backend.connectionStates.collect { map ->
+                if (map[deviceKey] != true &&
+                    _state.value == SensorSessionState.Connected
+                ) {
+                    onUnexpectedDrop()
+                }
+            }
+        }
         collectJob?.cancel()
         collectJob = scope.launch {
             backend.charValues(deviceKey, char.uuid).collect { bytes ->

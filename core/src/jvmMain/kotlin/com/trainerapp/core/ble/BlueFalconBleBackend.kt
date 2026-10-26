@@ -94,7 +94,7 @@ class BlueFalconBleBackend(
         falcon.stopScanning()
     }
 
-    override suspend fun connect(deviceKey: String) {
+    override suspend fun connect(deviceKey: String, awaitHandshakeMillis: Long) {
         val peripheral = this.peripheral(deviceKey)
         falcon.connect(peripheral)
         _connectionStates.value = _connectionStates.value + (deviceKey to true)
@@ -103,7 +103,7 @@ class BlueFalconBleBackend(
         // discovery races the handshake, yielding an empty GATT (observed in
         // the 003 acceptance ride: trainer classified Unsupported with no
         // telemetry/control path while the UI said riding).
-        withTimeoutOrNull(10_000) {
+        withTimeoutOrNull(awaitHandshakeMillis) {
             while (falcon.connectionState(peripheral) != BluetoothPeripheralState.Connected) {
                 delay(100)
             }

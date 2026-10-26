@@ -122,6 +122,25 @@ class SensorSessionTest {
     }
 
     @Test
+    fun connection_drop_reconnects_with_no_manual_intervention() = runTest {
+        val fake = FakeBleBackend().withStrapConnected()
+        withSession(fake) { session ->
+            session.connect()
+            fake.valueFlow(HR_CHAR).value = capturedFrame
+
+            // The strap powers off mid-ride — NOTHING calls onUnexpectedDrop;
+            // the session's own drop watcher must enter the reconnect loop.
+            fake.connections_.value = mapOf(STRAP to false, TRAINER to true)
+
+            assertTrue(
+                session.state.value is SensorSessionState.Reconnecting,
+                "watcher must auto-reconnect on drop: ${session.state.value}",
+            )
+            assertEquals(true, fake.connections_.value[TRAINER])
+        }
+    }
+
+    @Test
     fun telemetry_flags_stale_after_3s_without_data() = runTest {
         val fake = FakeBleBackend().withStrapConnected()
         val clock = Clock()
