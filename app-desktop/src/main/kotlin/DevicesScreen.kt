@@ -95,6 +95,21 @@ fun DevicesScreen(
             color = Color(0xFF616161),
         )
 
+        // 003: the remembered sensor sources are part of "remembered devices"
+        // too (the HR source persists independently of the trainer) — show it,
+        // resolving its friendly name from the current scan when possible.
+        val rememberedHr = session.rememberedHeartRate()
+        if (rememberedHr != null) {
+            val hrName = candidates.firstOrNull { it.platformId == rememberedHr }?.name
+                ?: session.sensorName
+                ?: rememberedHr
+            Text(
+                "remembered heart rate source: $hrName",
+                fontSize = 14.sp,
+                color = Color(0xFF616161),
+            )
+        }
+
         Spacer(Modifier.height(12.dp))
         OutlinedButton(onClick = { scope.launch { candidates = scan() } }) { Text("Rescan") }
         Spacer(Modifier.height(12.dp))

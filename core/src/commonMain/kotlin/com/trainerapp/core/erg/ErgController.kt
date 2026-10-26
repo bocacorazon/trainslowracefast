@@ -97,8 +97,19 @@ class ErgController(
         rememberedCandidate = candidate
         deliberatelyDisconnecting = false
         _state.value = _state.value.copy(link = ErgLink.CONNECTING, releaseConfirmed = null)
-        store.update { it.copy(trainer = TrainerIdentity(candidate.name, candidate.platformId)) }
         client.connect(candidate)
+        // Persist the remembered-trainer identity ONLY when the connect landed
+        // on a trainer protocol — a non-trainer device (e.g. a sensor routed
+        // here by mistake, observed live in the 003 ride when the strap hit
+        // this path and transiently clobbered the remembered Hammer) must
+        // never replace the real trainer. Failed/Unsupported connects keep
+        // the previous remembered identity.
+        val st = client.state.value
+        if (st is com.trainerapp.core.domain.TrainerState.Connected &&
+            st.protocol != com.trainerapp.core.domain.TrainerProtocol.Unsupported
+        ) {
+            store.update { it.copy(trainer = TrainerIdentity(candidate.name, candidate.platformId)) }
+        }
     }
 
     /** Sets the target directly (numeric field; clamped with a visible notice). */

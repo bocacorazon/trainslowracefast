@@ -35,6 +35,7 @@ private class FakeClient : TrainerClient {
     var connectCalls = 0
     var failWrites = false
     var failConnect = false
+    var nextProtocol: TrainerProtocol? = null
     var disconnectCalls = 0
     val candidate = TrainerCandidate(name = "Hammer 51967", platformId = "fake-platform-id", rssi = -55)
 
@@ -44,7 +45,7 @@ private class FakeClient : TrainerClient {
         state.value = if (failConnect) {
             TrainerState.Failed(com.trainerapp.core.domain.TrainerError.ConnectionFailed)
         } else {
-            TrainerState.Connected(TrainerProtocol.Ftms)
+            TrainerState.Connected(nextProtocol ?: TrainerProtocol.Ftms)
         }
     }
     override suspend fun setTargetPower(watts: Int): ControlResult {
@@ -256,5 +257,22 @@ class ErgControllerTest {
         advanceTimeBy(ErgController.RECONNECT_BACKOFF_MS.sum() * 2)
         assertEquals(connectCallsAfterDisconnect, fake.connectCalls) // no further retries
         assertEquals(ErgLink.DISCONNECTED, controller.state.value.link)
+    }
+
+    @Test
+    fun unsupportedProtocolConnectKeepsPreviousTrainer() = runTest {
+        val settings = store("""{"trainer":{"name":"Hammer 51967","platformId":"real-hammer"},"targetWatts":155}""")
+        val fake = FakeClient()
+        val controller = ErgController(fake, settings, backgroundScope)
+        runCurrent()
+
+        // Client connects but classifies the device Unsupported (sensor).
+        fake.nextProtocol = TrainerProtocol.Unsupported
+        val strap = TrainerCandidate(name = "808S 0004026", platformId = "strap-id", rssi = -69)
+        controller.connect(strap)
+        runCurrent()
+
+        assertEquals("Hammer 51967", settings.load().trainer?.name)
+        assertEquals("real-hammer", settings.load().trainer?.platformId)
     }
 }
