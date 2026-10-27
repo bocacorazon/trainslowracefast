@@ -14,8 +14,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -43,8 +45,11 @@ import com.trainerapp.core.domain.TrainerClient
 import com.trainerapp.core.domain.TrainerTelemetry
 import com.trainerapp.core.erg.ErgController
 import com.trainerapp.core.erg.ErgLink
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.nio.file.Files
 
 /**
  * The ride screen (grill decisions D3–D9). Consumes only StateFlows from the
@@ -58,11 +63,14 @@ fun RideScreen(
     trainerClient: TrainerClient,
     hrTelemetry: StateFlow<TrainerTelemetry>?,
     hrStatusText: StateFlow<String>,
+    recorder: RideRecorder,
+    snapshotProvider: () -> TelemetrySnapshot,
     onDisconnectAll: suspend () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val ergState by erg.state.collectAsState()
     val telemetry by trainerClient.telemetry.collectAsState()
+    val recState by recorder.state.collectAsState()
 
     // 003: strap heart rate. `hr` is null while no sensor session exists —
     // the line hides entirely (never a fabricated or dead placeholder).
@@ -164,6 +172,15 @@ fun RideScreen(
         }
         Text(text = status, fontSize = 14.sp, color = Color(0xFF616161))
 
+        // Increment 004: ride recording with incremental FIT persistence.
+        // A crash mid-ride leaves the file one trailer short; next launch
+        // offers resume (same file, same start) or discard.
+        RecordingPanel(
+            recorder = recorder,
+            snapshotProvider = snapshotProvider,
+            scope = scope,
+        )
+
         // Honest release state after a deliberate disconnect (grill decision D9).
         ergState.releaseConfirmed?.let { confirmed ->
             Spacer(Modifier.height(4.dp))
@@ -222,9 +239,107 @@ fun RideScreen(
             }
             // 003 (grill D10): ride-screen Disconnect drops ALL sources —
             // the trainer's min-load release first, then the strap.
-            OutlinedButton(onClick = { scope.launch { onDisconnectAll() } }) {
+            // 004: a running recording is finalized (trailer written) FIRST,
+            // so the ride is importable even if the disconnect path misbehaves.
+            OutlinedButton(onClick = {
+                scope.launch {
+                    if (recorder.isRecording) recorder.stop()
+                    onDisconnectAll()
+                }
+            }) {
                 Text("Disconnect", fontSize = 18.sp)
             }
         }
+    }
+}
+
+/**
+ * Increment 004 — ride recording with incremental FIT persistence.
+ *
+ * While recording, a new sample is flushed to disk every second (whole-file
+ * rewrite without the CRC trailer), so a crash costs at most one second.
+ * On next launch, a file left in progress is offered for resume (same file,
+ * same start timestamp, records continue) or discard.
+ */
+@Composable
+private fun RecordingPanel(
+    recorder: RideRecorder,
+    snapshotProvider: () -> TelemetrySnapshot,
+    scope: CoroutineScope,
+) {
+    val recState by recorder.state.collectAsState()
+    var incomplete by remember { mutableStateOf(recorder.findIncomplete()) }
+
+    val recording = recState is RideRecorder.RecorderState.Recording
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(recording) {
+        if (!recording) return@LaunchedEffect
+        while (true) {
+            delay(1_000)
+            now = System.currentTimeMillis()
+        }
+    }
+
+    Spacer(Modifier.height(16.dp))
+    Row(
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val leftover = incomplete.firstOrNull()
+        if (leftover != null) {
+            Text(
+                text = "incomplete ride · ${formatDuration(leftover.durationSeconds * 1000L)} · " +
+                    "${leftover.sampleCount} samples · ${leftover.file.fileName}",
+                fontSize = 14.sp,
+                color = Color(0xFFB71C1C),
+            )
+            Spacer(Modifier.width(8.dp))
+            Button(onClick = {
+                scope.launch {
+                    recorder.resume(leftover.file, snapshotProvider)
+                    incomplete = emptyList()
+                }
+            }) { Text("Resume") }
+            Spacer(Modifier.width(8.dp))
+            OutlinedButton(onClick = {
+                Files.deleteIfExists(leftover.file)
+                incomplete = emptyList()
+            }) { Text("Discard") }
+            return@Row
+        }
+
+        when (val r = recState) {
+            is RideRecorder.RecorderState.Recording -> {
+                Text(
+                    text = "recording ${formatDuration(now - r.startedAtMillis)} → ${r.file.fileName} · saves every second",
+                    fontSize = 14.sp,
+                    color = Color(0xFFB71C1C),
+                )
+                Spacer(Modifier.width(8.dp))
+                Button(onClick = { recorder.stop() }) { Text("Stop recording") }
+            }
+            is RideRecorder.RecorderState.Stopped -> {
+                Text(
+                    text = "saved ${formatDuration(r.durationMillis)} · ${r.sampleCount} samples → ${r.file}",
+                    fontSize = 14.sp,
+                    color = Color(0xFF1B5E20),
+                )
+            }
+            RideRecorder.RecorderState.Idle -> {
+                Button(onClick = { recorder.start(snapshotProvider) }) { Text("Start recording") }
+            }
+        }
+    }
+}
+
+private fun formatDuration(ms: Long): String {
+    val s = ms / 1000
+    val h = s / 3600
+    val m = (s % 3600) / 60
+    val sec = s % 60
+    return if (h > 0) {
+        "${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}"
+    } else {
+        "${m}:${sec.toString().padStart(2, '0')}"
     }
 }

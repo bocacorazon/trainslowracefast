@@ -31,6 +31,7 @@ fun TrainerApp(
     trainerClient: TrainerClient,
     settingsStore: SettingsStore,
     session: MultiDeviceSession,
+    recorder: RideRecorder,
 ) {
     var screen by remember {
         mutableStateOf(if (settingsStore.load().trainer != null) Screen.Ride else Screen.Devices)
@@ -54,6 +55,15 @@ fun TrainerApp(
                 trainerClient = trainerClient,
                 hrTelemetry = session.sensorTelemetry,
                 hrStatusText = session.sensorStatusText,
+                recorder = recorder,
+                snapshotProvider = {
+                    val t = trainerClient.telemetry.value
+                    TelemetrySnapshot(
+                        watts = t.watts,
+                        heartRateBpm = session.heartRateBpm(),
+                        speedKph = t.speedKph,
+                    )
+                },
                 onDisconnectAll = { session.disconnectAll(erg) },
             )
         }
