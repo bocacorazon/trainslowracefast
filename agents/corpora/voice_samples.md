@@ -10,7 +10,7 @@ before LP-copy-v2 (`exec-lp-copy-v2-engineer-voice`). Refreshed quarterly; max ~
 ## Sample 1 — How I learned volume beats intensity — 2026-04-30
 
 Context: founder origin story. Personal-narrative voice. ~280 words. Source draft:
-`docs/voice.md`. Cleaned 2026-04-30: pronoun consistency (paragraph 2 unified to
+`docs/product/voice.md`. Cleaned 2026-04-30: pronoun consistency (paragraph 2 unified to
 first-person singular); *80/20 Running* italicized and author named.
 
 When I discovered cycling, it did not take long to realize I had talent somewhat

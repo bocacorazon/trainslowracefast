@@ -7,7 +7,7 @@
 #
 # Tier discipline: CLOUD ONLY. Do not pipe per-athlete HRV, declared conditions,
 # declared medications, or tagged context through this script.
-# See docs/12_operational_agents.md §2.
+# See docs/product/12_operational_agents.md §2.
 
 set -euo pipefail
 
