@@ -61,6 +61,10 @@ class MultiDeviceSession(
     val sensorTelemetry: StateFlow<TrainerTelemetry>?
         get() = sensorSession?.telemetry
 
+    /** Merged HR source for the recorder: the strap first, then the trainer (if it reports HR). */
+    fun heartRateBpm(): Int? =
+        sensorTelemetry?.value?.heartRateBpm ?: trainerClient.telemetry.value.heartRateBpm
+
     private var statusJob: Job? = null
 
     /**
@@ -163,6 +167,7 @@ fun main() = application {
     val trainerClient = remember { BlueFalconTrainerClient(BlueFalconBleBackend()) }
     val erg = remember { ErgController(trainerClient, settingsStore, scope) }
     val session = remember { MultiDeviceSession(trainerClient, settingsStore, scope) }
+    val recorder = remember { RideRecorder(RideRecorder.defaultRidesDir(), scope) }
 
     Window(title = "TrainerApp", onCloseRequest = ::exitApplication) {
         TrainerApp(
@@ -170,6 +175,7 @@ fun main() = application {
             trainerClient = trainerClient,
             settingsStore = settingsStore,
             session = session,
+            recorder = recorder,
         )
     }
 
