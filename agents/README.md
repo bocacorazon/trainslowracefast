@@ -1,6 +1,6 @@
 # Operational agents
 
-This directory implements the operational agent framework defined in `docs/12_operational_agents.md`.
+This directory implements the operational agent framework defined in `docs/product/12_operational_agents.md`.
 
 ## Layout
 
@@ -48,7 +48,7 @@ agents/scripts/copilot-agent.sh content-writer
 **Local tier** (Ollama, deferred per K-W7-5): Workout Analyst, Weekly Review Drafter, Support Drafter.
 
 The cloud harness must NEVER be invoked with per-athlete HRV, declared conditions, declared
-medications, or tagged context. See `docs/12_operational_agents.md` §2.
+medications, or tagged context. See `docs/product/12_operational_agents.md` §2.
 
 ## Adding a new role
 

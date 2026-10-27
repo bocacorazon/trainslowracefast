@@ -1,6 +1,6 @@
 # Brand voice guide
 
-Source of truth: `docs/01_demand_positioning_workshop.md` (W1) and `docs/05_brand_workshop.md` (W5).
+Source of truth: `docs/product/04_demand_positioning_workshop.md` (Workshop 1) and `docs/product/05_behavior_wedge_workshop.md` (Workshop 2). *(Paths updated 2026-10-27 — docs moved under `docs/product/`; earlier refs pointed at pre-restructure filenames.)*
 
 ## Voice posture: engineer-honest
 
